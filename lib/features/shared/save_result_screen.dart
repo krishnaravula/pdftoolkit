@@ -10,6 +10,8 @@ import '../../core/utils/error_messages.dart';
 import '../../core/widgets/app_widgets.dart';
 import '../../domain/entities/pdf_feature.dart';
 import '../../services/storage/file_save_service.dart';
+import '../../services/storage/recent_files_service.dart';
+import '../../services/storage/storage_repository.dart';
 
 /// Unified save-result screen shown after every PDF operation.
 class SaveResultScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,8 @@ class SaveResultScreen extends ConsumerStatefulWidget {
 
 class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   late List<TextEditingController> _nameControllers;
+  late final StorageRepository _storage;
+  late final RecentFilesService _recentFilesService;
   bool _saving = true;
   List<String> _savedPaths = <String>[];
   List<String?> _exportedUris = <String?>[];
@@ -38,7 +42,9 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   @override
   void initState() {
     super.initState();
-    final storage = ref.read(storageRepositoryProvider);
+    _storage = ref.read(storageRepositoryProvider);
+    _recentFilesService = ref.read(recentFilesServiceProvider);
+    final storage = _storage;
     _nameControllers = widget.pendingFiles
         .map(
           (f) => TextEditingController(
@@ -116,9 +122,7 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   @override
   void dispose() {
     if (_savedPaths.isNotEmpty) {
-      ref
-          .read(recentFilesServiceProvider)
-          .unmarkResultScreenActivePaths(_savedPaths);
+      _recentFilesService.unmarkResultScreenActivePaths(_savedPaths);
     }
     for (final c in _nameControllers) {
       c.dispose();
@@ -281,11 +285,17 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
     );
     controller.dispose();
     if (newValue == null || newValue.isEmpty) return;
-    final storage = ref.read(storageRepositoryProvider);
     final file = File(oldPath);
     if (!await file.exists()) return;
-    final newName = storage.ensurePdfFileName(newValue);
+    final newName = _storage.ensurePdfFileName(newValue);
     final newPath = p.join(p.dirname(oldPath), newName);
+    if (newPath != oldPath && await File(newPath).exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A file with that name already exists.')),
+      );
+      return;
+    }
     final renamed = await file.rename(newPath);
     final recent = await ref
         .read(recentFilesServiceProvider)

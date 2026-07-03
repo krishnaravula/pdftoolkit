@@ -130,8 +130,7 @@ class _RemovePasswordScreenState extends ConsumerState<RemovePasswordScreen>
               context,
             ).showSnackBar(const SnackBar(content: Text('Incorrect password')));
           }
-
-          rethrow;
+          return null;
         }
       },
     );

@@ -208,10 +208,18 @@ class RecentFilesRepository {
       path: row.path,
       sizeBytes: row.sizeBytes,
       createdAt: row.createdAt,
-      sourceFeature: PdfFeatureType.values.byName(row.sourceFeature),
+      sourceFeature: _parseSourceFeature(row.sourceFeature),
       thumbnailPath: row.thumbnailPath,
       exportedUri: row.exportedUri,
       pinned: row.pinned,
     );
+  }
+
+  PdfFeatureType _parseSourceFeature(String value) {
+    for (final feature in PdfFeatureType.values) {
+      if (feature.name == value) return feature;
+    }
+    debugPrint('RecentFilesRepository: unknown source feature "$value"');
+    return PdfFeatureType.merge;
   }
 }

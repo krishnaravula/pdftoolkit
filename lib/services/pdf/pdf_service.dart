@@ -8,6 +8,8 @@ import '../../core/pdf/pdfrx_initializer.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/image_processing.dart';
 import '../../domain/entities/pdf_job.dart';
+import 'pdf_merge_normalizer.dart';
+import 'pdf_merge_page_size.dart';
 
 typedef PdfProgressCallback =
     void Function(int current, int total, String message);
@@ -19,6 +21,7 @@ class PdfService {
   Future<String> mergePdfs(
     List<String> inputPaths, {
     required String outputPath,
+    MergePageSizeMode pageSizeMode = MergePageSizeMode.firstPageOfFirstPdf,
     PdfProgressCallback? onProgress,
   }) async {
     await PdfrxInitializer.ensureInitialized();
@@ -34,16 +37,34 @@ class PdfService {
       onProgress?.call(0, inputPaths.length + 1, 'Merging files…');
       outputDoc = await PdfDocument.createNew(sourceName: outputPath);
 
-      for (var i = 0; i < inputPaths.length; i++) {
-        final doc = await _openFile(inputPaths[i]);
-        sourceDocs.add(doc);
-        outputDoc.pages = [...outputDoc.pages, ...doc.pages];
-        onProgress?.call(
-          i + 1,
-          inputPaths.length + 1,
-          'Merged ${i + 1}/${inputPaths.length}',
+      for (final path in inputPaths) {
+        sourceDocs.add(await _openFile(path));
+      }
+
+      if (pageSizeMode == MergePageSizeMode.preserveOriginal) {
+        // Keep the original per-page sizes: concatenate pages verbatim.
+        for (var i = 0; i < sourceDocs.length; i++) {
+          outputDoc.pages = [...outputDoc.pages, ...sourceDocs[i].pages];
+          onProgress?.call(
+            i + 1,
+            inputPaths.length + 1,
+            'Merged ${i + 1}/${inputPaths.length}',
+          );
+          await Future<void>.delayed(Duration.zero);
+        }
+      } else {
+        // Normalize every page onto a uniform target size, preserving vector
+        // content and text via form XObjects.
+        await PdfMergeNormalizer.normalizeInto(
+          sourceDocs: sourceDocs,
+          outputDoc: outputDoc,
+          mode: pageSizeMode,
         );
-        await Future<void>.delayed(Duration.zero);
+        onProgress?.call(
+          inputPaths.length,
+          inputPaths.length + 1,
+          'Normalizing pages…',
+        );
       }
 
       await _writeDocument(outputDoc, outputPath, onProgress: onProgress);

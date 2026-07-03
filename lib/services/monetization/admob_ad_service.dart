@@ -11,6 +11,7 @@ class AdMobAdService implements AdService {
   BannerAd? _loadingBanner;
   InterstitialAd? _interstitialAd;
   DateTime? _lastInterstitial;
+  final ValueNotifier<int> _bannerRevision = ValueNotifier(0);
 
   @override
   Future<void> initialize() async {
@@ -22,9 +23,20 @@ class AdMobAdService implements AdService {
   Widget buildBannerAd() {
     if (!Platform.isAndroid) return const SizedBox.shrink();
 
-    final ad = _bannerAd ?? _loadingBanner ?? _createBanner();
+    return ValueListenableBuilder<int>(
+      valueListenable: _bannerRevision,
+      builder: (context, _, _) {
+        final loaded = _bannerAd;
+        if (loaded != null) {
+          return SizedBox(height: 50, child: AdWidget(ad: loaded));
+        }
 
-    return SizedBox(height: 50, child: AdWidget(ad: ad));
+        if (_loadingBanner == null) {
+          _createBanner();
+        }
+        return const SizedBox(height: 50);
+      },
+    );
   }
 
   BannerAd _createBanner() {
@@ -36,10 +48,12 @@ class AdMobAdService implements AdService {
         onAdLoaded: (ad) {
           _bannerAd = ad as BannerAd;
           _loadingBanner = null;
+          _bannerRevision.value++;
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _loadingBanner = null;
+          _bannerRevision.value++;
         },
       ),
     )..load();
@@ -91,6 +105,8 @@ class AdMobAdService implements AdService {
   @override
   void dispose() {
     _bannerAd?.dispose();
+    _loadingBanner?.dispose();
     _interstitialAd?.dispose();
+    _bannerRevision.dispose();
   }
 }

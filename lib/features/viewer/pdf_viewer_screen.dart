@@ -9,6 +9,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../core/pdf/pdfrx_initializer.dart';
 import '../../core/di/providers.dart';
 import '../../core/utils/error_messages.dart';
+import '../../core/utils/file_utils.dart';
 import '../../core/widgets/app_widgets.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
@@ -76,7 +77,22 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
     try {
       final recentFiles = ref.read(recentFilesServiceProvider);
-      final newPath = p.join(p.dirname(widget.filePath), '$newName.pdf');
+      final sanitized = FileUtils.sanitizeFileName(newName);
+      if (sanitized.isEmpty) return;
+      final newFileName = sanitized.toLowerCase().endsWith('.pdf')
+          ? sanitized
+          : '$sanitized.pdf';
+      final newPath = p.join(p.dirname(widget.filePath), newFileName);
+      if (newPath != widget.filePath && File(newPath).existsSync()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A file with that name already exists.'),
+            ),
+          );
+        }
+        return;
+      }
       await File(widget.filePath).rename(newPath);
 
       final existing = await recentFiles.findByPath(widget.filePath);

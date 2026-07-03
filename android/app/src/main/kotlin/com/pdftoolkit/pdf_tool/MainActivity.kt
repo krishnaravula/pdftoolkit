@@ -32,36 +32,73 @@ class MainActivity : FlutterActivity() {
         when (call.method) {
             "pickExportTreeUri" -> pickExportTreeUri(result)
             "persistTreeUriPermission" -> {
-                val treeUri = Uri.parse(call.argument<String>("treeUri"))
-                persistTreeUriPermission(treeUri)
-                result.success(null)
+                val treeUriString = call.argument<String>("treeUri")
+                if (treeUriString.isNullOrBlank()) {
+                    result.error("invalid_argument", "treeUri is required", null)
+                    return
+                }
+                try {
+                    persistTreeUriPermission(Uri.parse(treeUriString))
+                    result.success(null)
+                } catch (e: Exception) {
+                    result.error("persist_failed", e.message, null)
+                }
             }
             "hasPersistedWritePermission" -> {
-                val treeUri = Uri.parse(call.argument<String>("treeUri"))
-                result.success(hasPersistedWritePermission(treeUri))
+                val treeUriString = call.argument<String>("treeUri")
+                if (treeUriString.isNullOrBlank()) {
+                    result.success(false)
+                    return
+                }
+                result.success(hasPersistedWritePermission(Uri.parse(treeUriString)))
             }
             "exportPdfToTreeUri" -> {
-                val treeUri = Uri.parse(requireNotNull(call.argument<String>("treeUri")))
-                val sourcePath = requireNotNull(call.argument<String>("sourceFilePath"))
-                val outputFileName = requireNotNull(call.argument<String>("outputFileName"))
-                result.success(exportPdfToTreeUri(treeUri, sourcePath, outputFileName))
+                val treeUriString = call.argument<String>("treeUri")
+                val sourcePath = call.argument<String>("sourceFilePath")
+                val outputFileName = call.argument<String>("outputFileName")
+                if (treeUriString.isNullOrBlank() ||
+                    sourcePath.isNullOrBlank() ||
+                    outputFileName.isNullOrBlank()
+                ) {
+                    result.error("invalid_argument", "Missing export parameters", null)
+                    return
+                }
+                try {
+                    val exportedUri = exportPdfToTreeUri(
+                        Uri.parse(treeUriString),
+                        sourcePath,
+                        outputFileName,
+                    )
+                    result.success(exportedUri)
+                } catch (e: Exception) {
+                    result.error("export_failed", e.message, null)
+                }
             }
             else -> result.notImplemented()
         }
     }
 
     private fun pickExportTreeUri(result: MethodChannel.Result) {
+        if (pendingResult != null) {
+            result.error("busy", "Another folder picker is already open", null)
+            return
+        }
         pendingResult = result
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+            )
         }
+        @Suppress("DEPRECATION")
         startActivityForResult(intent, REQUEST_OPEN_TREE)
     }
 
     private fun persistTreeUriPermission(treeUri: Uri) {
         contentResolver.takePersistableUriPermission(
             treeUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
         )
     }
 
@@ -71,12 +108,16 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun exportPdfToTreeUri(treeUri: Uri, sourcePath: String, outputName: String): String {
+        val sourceFile = File(sourcePath)
+        if (!sourceFile.isFile) {
+            throw IllegalStateException("Source PDF is unavailable.")
+        }
         val folder = DocumentFile.fromTreeUri(this, treeUri)
             ?: throw IllegalStateException("Selected folder is unavailable.")
         val uniqueName = resolveUniquePdfName(folder, outputName)
         val target = folder.createFile("application/pdf", uniqueName)
             ?: throw IllegalStateException("Unable to create destination file.")
-        copyFileToUri(File(sourcePath), target.uri, contentResolver)
+        copyFileToUri(sourceFile, target.uri, contentResolver)
         return target.uri.toString()
     }
 
@@ -104,20 +145,26 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_OPEN_TREE) return
+
         val result = pendingResult ?: return
-        when (requestCode) {
-            REQUEST_OPEN_TREE -> {
-                if (resultCode != Activity.RESULT_OK || data?.data == null) {
-                    result.success(null)
-                } else {
-                    val treeUri = data.data!!
-                    persistTreeUriPermission(treeUri)
-                    result.success(treeUri.toString())
-                }
-                pendingResult = null
-            }
+        pendingResult = null
+
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            result.success(null)
+            return
+        }
+
+        val treeUri = data.data!!
+        try {
+            persistTreeUriPermission(treeUri)
+            result.success(treeUri.toString())
+        } catch (e: Exception) {
+            result.error("persist_failed", e.message, null)
         }
     }
 }
