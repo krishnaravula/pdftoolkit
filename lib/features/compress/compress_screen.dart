@@ -8,6 +8,7 @@ import '../../core/di/providers.dart';
 
 import '../../core/widgets/app_widgets.dart';
 
+import '../../data/local/app_preferences.dart';
 import '../../domain/entities/pdf_feature.dart';
 
 import '../../domain/entities/pdf_job.dart';
@@ -26,9 +27,32 @@ class _CompressScreenState extends ConsumerState<CompressScreen>
   String? _inputPath;
 
   CompressionQuality _quality = CompressionQuality.medium;
+  bool _loadedDefaults = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaults();
+  }
+
+  Future<void> _loadDefaults() async {
+    final prefs = await ref.read(appPreferencesProvider.future);
+    if (!mounted) return;
+    setState(() {
+      _quality = prefs.compressionPreset.quality;
+      _loadedDefaults = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (!_loadedDefaults) {
+      return const FeatureScaffold(
+        title: 'Compress PDF',
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final progress = ref.watch(pdfJobNotifierProvider);
 
     final isRunning = progress.status == PdfJobStatus.running || isJobRunning;

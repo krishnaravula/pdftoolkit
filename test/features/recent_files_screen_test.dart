@@ -3,24 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:pdf_toolkit/core/di/providers.dart';
+import 'package:pdf_toolkit/data/local/app_preferences.dart';
 import 'package:pdf_toolkit/domain/entities/pdf_feature.dart';
 import 'package:pdf_toolkit/domain/entities/recent_file.dart';
 import 'package:pdf_toolkit/features/recent_files/recent_files_screen.dart';
 import 'package:pdf_toolkit/services/share/share_service.dart';
 import 'package:pdf_toolkit/services/storage/recent_files_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('Recent files screen shows empty state', (tester) async {
     final fakeRecentFilesService = _FakeRecentFilesService();
-    final fakeShareService = _FakeShareService();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           recentFilesServiceProvider.overrideWithValue(fakeRecentFilesService),
-          shareServiceProvider.overrideWithValue(fakeShareService),
+          shareServiceProvider.overrideWithValue(_FakeShareService()),
           recentFilesStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
+          ),
+          appPreferencesProvider.overrideWith(
+            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
           ),
         ],
         child: const MaterialApp(home: RecentFilesScreen()),
@@ -30,12 +38,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Recent files'), findsOneWidget);
-    expect(find.text('No recent PDFs yet.'), findsOneWidget);
+    expect(find.text('No recent files'), findsOneWidget);
+    expect(
+      find.text('Files you create or open will appear here.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Recent files screen renders streamed file name', (tester) async {
     final fakeRecentFilesService = _FakeRecentFilesService();
-    final fakeShareService = _FakeShareService();
     final files = [
       RecentFileItem(
         id: '1',
@@ -51,8 +62,11 @@ void main() {
       ProviderScope(
         overrides: [
           recentFilesServiceProvider.overrideWithValue(fakeRecentFilesService),
-          shareServiceProvider.overrideWithValue(fakeShareService),
+          shareServiceProvider.overrideWithValue(_FakeShareService()),
           recentFilesStreamProvider.overrideWith((ref) => Stream.value(files)),
+          appPreferencesProvider.overrideWith(
+            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
+          ),
         ],
         child: const MaterialApp(home: RecentFilesScreen()),
       ),
@@ -75,6 +89,8 @@ class _FakeShareService extends ShareService {
 }
 
 class _FakeRecentFilesService implements RecentFilesService {
+  _FakeRecentFilesService();
+
   @override
   Future<RecentFileItem> addFromOutput({
     required String outputPath,
@@ -103,7 +119,22 @@ class _FakeRecentFilesService implements RecentFilesService {
   Future<void> deleteRecentFile(String id) async {}
 
   @override
-  bool fileExists(String path) => true;
+  Future<bool> deleteFileAndRemoveFromRecent(String id) async => true;
+
+  @override
+  Future<void> removeFromRecent(String id) async {}
+
+  @override
+  Future<void> clearRecentHistory() async {}
+
+  @override
+  bool canRename(RecentFileItem file) => true;
+
+  @override
+  Future<bool> fileExists(String path) async => true;
+
+  @override
+  bool fileExistsSync(String path) => true;
 
   @override
   Future<RecentFileItem?> findByPath(String path) async => null;
@@ -112,7 +143,10 @@ class _FakeRecentFilesService implements RecentFilesService {
   String formatFileSize(int bytes) => '$bytes B';
 
   @override
-  String formatLocation(String path) => path;
+  String formatLocationLabel(RecentFileItem file) => 'Saved in PDF Tools';
+
+  @override
+  String formatFullLocation(RecentFileItem file) => file.path;
 
   @override
   Future<List<RecentFileItem>> getRecentFiles() async => const [];
@@ -124,12 +158,24 @@ class _FakeRecentFilesService implements RecentFilesService {
   }) async {}
 
   @override
+  Future<void> relinkRecentFile({
+    required String id,
+    required String newPath,
+  }) async {}
+
+  @override
   Stream<List<RecentFileItem>> watchRecentFiles() => const Stream.empty();
 
   @override
   Future<void> cleanupOldProcessedFiles({
     Duration maxAge = const Duration(days: 30),
   }) async {}
+
+  @override
+  Future<int> calculateTemporaryFilesBytes() async => 0;
+
+  @override
+  Future<int> clearTemporaryFiles() async => 0;
 
   @override
   void markResultScreenActivePaths(List<String> paths) {}

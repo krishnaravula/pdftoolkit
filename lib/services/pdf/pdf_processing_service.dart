@@ -122,6 +122,7 @@ class PdfProcessingService {
   Future<String> imagesToPdf(
     List<String> imagePaths, {
     required String suggestedName,
+    int jpegQuality = 85,
     PdfProgressCallback? onProgress,
   }) async {
     if (imagePaths.isEmpty) {
@@ -137,6 +138,7 @@ class PdfProcessingService {
       return await _pdfService.imagesToPdf(
         imagePaths,
         outputPath: outputPath,
+        jpegQuality: jpegQuality,
         onProgress: onProgress,
       );
     } catch (e, st) {

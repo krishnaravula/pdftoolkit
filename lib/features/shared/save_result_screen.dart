@@ -8,7 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/providers.dart';
 import '../../core/utils/error_messages.dart';
 import '../../core/widgets/app_widgets.dart';
+import '../../data/local/app_preferences.dart';
+import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/pdf_feature.dart';
+import '../../domain/entities/recent_file.dart';
 import '../../services/storage/file_save_service.dart';
 import '../../services/storage/recent_files_service.dart';
 import '../../services/storage/storage_repository.dart';
@@ -131,6 +134,11 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   }
 
   Future<void> _autoExportIfPreferred() async {
+    final prefs = await ref.read(appPreferencesProvider.future);
+    if (prefs.defaultSaveLocation != DefaultSaveLocation.previouslySelected) {
+      return;
+    }
+
     final storage = ref.read(storageRepositoryProvider);
     final treeUri = await storage.getPreferredExportTreeUri();
     if (treeUri == null) return;
@@ -373,7 +381,17 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              recentFiles.formatLocation(_savedPaths[index]),
+                              recentFiles.formatLocationLabel(
+                                RecentFileItem(
+                                  id: '',
+                                  displayName: p.basename(_savedPaths[index]),
+                                  path: _savedPaths[index],
+                                  sizeBytes: 0,
+                                  createdAt: DateTime.now(),
+                                  sourceFeature: widget.feature,
+                                  exportedUri: _exportedUris[index],
+                                ),
+                              ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 8),

@@ -15,4 +15,15 @@ enum PdfFeatureType {
   final String label;
   final String routeName;
   final String description;
+
+  /// Past-tense label shown on recent-file cards.
+  String get recentFilesLabel => switch (this) {
+    PdfFeatureType.merge => 'Merged PDF',
+    PdfFeatureType.split => 'Split PDF',
+    PdfFeatureType.compress => 'Compressed PDF',
+    PdfFeatureType.imageToPdf => 'Converted PDF',
+    PdfFeatureType.removePassword => 'Unlocked PDF',
+    PdfFeatureType.scan => 'Scanned PDF',
+    PdfFeatureType.pageEditor => 'Reordered PDF',
+  };
 }

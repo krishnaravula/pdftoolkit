@@ -6,9 +6,10 @@ class AppTheme {
   static const _seed = Color(0xFF546E7A);
 
   static ThemeData light() {
+    final scheme = ColorScheme.fromSeed(seedColor: _seed);
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: _seed),
+      colorScheme: scheme,
       appBarTheme: const AppBarTheme(centerTitle: false),
       navigationBarTheme: const NavigationBarThemeData(
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -17,7 +18,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Color(0xFFE0E0E0)),
+          side: BorderSide(color: scheme.outline),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -27,13 +28,14 @@ class AppTheme {
   }
 
   static ThemeData dark() {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: Brightness.dark,
+    );
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _seed,
-        brightness: Brightness.dark,
-      ),
+      colorScheme: scheme,
       appBarTheme: const AppBarTheme(centerTitle: false),
       navigationBarTheme: const NavigationBarThemeData(
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -42,7 +44,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF424242)),
+          side: BorderSide(color: scheme.outline),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

@@ -181,6 +181,7 @@ class PdfService {
   Future<String> imagesToPdf(
     List<String> imagePaths, {
     required String outputPath,
+    int jpegQuality = 85,
     PdfProgressCallback? onProgress,
   }) async {
     await PdfrxInitializer.ensureInitialized();
@@ -218,7 +219,7 @@ class PdfService {
         );
         final jpegBytes = await encodeJpegFromImageInIsolate(
           image,
-          quality: 85,
+          quality: jpegQuality,
         );
 
         final pageDoc = await PdfDocument.createFromJpegData(

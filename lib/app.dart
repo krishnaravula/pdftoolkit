@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/env.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/local/app_preferences.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
 class PdfToolkitApp extends ConsumerStatefulWidget {
@@ -29,6 +30,8 @@ class _PdfToolkitAppState extends ConsumerState<PdfToolkitApp> {
 
   @override
   Widget build(BuildContext context) {
+    final prefsAsync = ref.watch(appPreferencesProvider);
+
     if (_onboardingComplete == null) {
       return MaterialApp(
         title: Env.appName,
@@ -52,12 +55,16 @@ class _PdfToolkitAppState extends ConsumerState<PdfToolkitApp> {
     }
 
     final router = ref.watch(appRouterProvider);
+    final themeMode = prefsAsync.maybeWhen(
+      data: (prefs) => prefs.theme.themeMode,
+      orElse: () => ThemeMode.system,
+    );
 
     return MaterialApp.router(
       title: Env.appName,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

@@ -14,6 +14,7 @@ import '../../features/recent_files/recent_files_screen.dart';
 import '../../features/remove_password/remove_password_screen.dart';
 import '../../features/scan/scan_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/privacy/privacy_policy_screen.dart';
 import '../../features/viewer/pdf_viewer_screen.dart';
 import '../../features/split/split_screen.dart';
 
@@ -99,9 +100,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/viewer',
         builder: (context, state) {
-          final path = state.extra as String? ?? '';
+          final extra = state.extra;
+          if (extra is PdfViewerArgs) {
+            return PdfViewerScreen(
+              filePath: extra.filePath,
+              password: extra.password,
+            );
+          }
+          final path = extra as String? ?? '';
           return PdfViewerScreen(filePath: path);
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/privacy-policy',
+        builder: (context, state) => const PrivacyPolicyScreen(),
       ),
     ],
   );
@@ -117,35 +130,41 @@ class MainShell extends ConsumerWidget {
     final adService = ref.watch(adServiceProvider);
 
     return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FutureBuilder<bool>(
-            future: ref.read(adsEnabledProvider.future),
-            builder: (context, snapshot) {
-              if (snapshot.data != true) return const SizedBox.shrink();
-              return adService.buildBannerAd();
-            },
-          ),
-          NavigationBar(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: navigationShell.goBranch,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              NavigationDestination(icon: Icon(Icons.history), label: 'Recent'),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: 'Settings',
-              ),
-            ],
-          ),
-        ],
+      body: SafeArea(child: navigationShell),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FutureBuilder<bool>(
+              future: ref.read(adsEnabledProvider.future),
+              builder: (context, snapshot) {
+                if (snapshot.data != true) return const SizedBox.shrink();
+                return adService.buildBannerAd();
+              },
+            ),
+            NavigationBar(
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: navigationShell.goBranch,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history),
+                  label: 'Recent',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

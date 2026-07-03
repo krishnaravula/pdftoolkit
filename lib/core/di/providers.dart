@@ -75,7 +75,10 @@ final recentFilesRepositoryProvider = Provider<RecentFilesRepository>((ref) {
 });
 
 final recentFilesServiceProvider = Provider<RecentFilesService>((ref) {
-  return RecentFilesService(ref.watch(recentFilesRepositoryProvider));
+  return RecentFilesService(
+    ref.watch(recentFilesRepositoryProvider),
+    ref.watch(fileStorageProvider),
+  );
 });
 
 final recentFilesStreamProvider = StreamProvider<List<RecentFileItem>>((ref) {

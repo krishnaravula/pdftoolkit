@@ -13,9 +13,10 @@ import '../../core/utils/file_utils.dart';
 import '../../core/widgets/app_widgets.dart';
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
-  const PdfViewerScreen({super.key, required this.filePath});
+  const PdfViewerScreen({super.key, required this.filePath, this.password});
 
   final String filePath;
+  final String? password;
 
   @override
   ConsumerState<PdfViewerScreen> createState() => _PdfViewerScreenState();
@@ -230,6 +231,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
       ),
       body: PdfViewer.file(
         widget.filePath,
+        passwordProvider: widget.password == null ? null : () => widget.password!,
         controller: _controller,
         params: const PdfViewerParams(
           sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(
@@ -244,6 +246,13 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   }
 }
 
-void openPdfViewer(BuildContext context, String filePath) {
-  context.push('/viewer', extra: filePath);
+void openPdfViewer(BuildContext context, String filePath, {String? password}) {
+  context.push('/viewer', extra: PdfViewerArgs(filePath: filePath, password: password));
+}
+
+class PdfViewerArgs {
+  const PdfViewerArgs({required this.filePath, this.password});
+
+  final String filePath;
+  final String? password;
 }

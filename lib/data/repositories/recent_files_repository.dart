@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../core/utils/file_utils.dart';
+import '../../core/utils/recent_files_logic.dart';
 import '../../domain/entities/pdf_feature.dart';
 import '../../domain/entities/recent_file.dart';
 import '../local/database/app_database.dart';
@@ -117,14 +119,36 @@ class RecentFilesRepository {
     required String newName,
   }) async {
     final row = await _db.getRecentFile(id);
-    if (row == null) return;
+    if (row == null) {
+      throw StateError('Recent file entry not found.');
+    }
 
-    final sanitized = newName.trim();
-    if (sanitized.isEmpty) return;
+    final validationError = validateRenameFilename(newName);
+    if (validationError != null) {
+      throw ArgumentError(validationError);
+    }
 
+    final sanitized = ensurePdfExtension(FileUtils.sanitizeFileName(newName));
     final newPath = p.join(p.dirname(row.path), sanitized);
     final file = File(row.path);
-    if (await file.exists()) {
+
+    if (!await file.exists()) {
+      throw StateError(
+        'This file was moved, deleted, or is no longer available.',
+      );
+    }
+
+    if (!_isAppManagedPath(row.path)) {
+      throw UnsupportedError(
+        'Renaming is not supported for files saved outside app storage.',
+      );
+    }
+
+    if (newPath != row.path && await File(newPath).exists()) {
+      throw StateError('A file with that name already exists.');
+    }
+
+    if (newPath != row.path) {
       await file.rename(newPath);
     }
 
@@ -141,6 +165,35 @@ class RecentFilesRepository {
         pinned: drift.Value(row.pinned),
       ),
     );
+  }
+
+  Future<void> relinkRecentFile({
+    required String id,
+    required String newPath,
+  }) async {
+    final row = await _db.getRecentFile(id);
+    if (row == null) return;
+
+    final file = File(newPath);
+    if (!await file.exists()) {
+      throw StateError('Selected file does not exist.');
+    }
+
+    final size = await file.length();
+    await _db.insertRecentFile(
+      RecentFilesCompanion(
+        id: drift.Value(id),
+        displayName: drift.Value(p.basename(newPath)),
+        path: drift.Value(newPath),
+        sizeBytes: drift.Value(size),
+        createdAt: drift.Value(row.createdAt),
+        sourceFeature: drift.Value(row.sourceFeature),
+        thumbnailPath: const drift.Value(null),
+        exportedUri: drift.Value(row.exportedUri),
+        pinned: drift.Value(row.pinned),
+      ),
+    );
+    _generateThumbnailInBackground(id, newPath);
   }
 
   Future<void> setExportedUri({
@@ -182,23 +235,60 @@ class RecentFilesRepository {
     );
   }
 
-  Future<void> deleteRecentFile(String id) async {
+  /// Removes the history entry and thumbnail only; does not delete the PDF.
+  Future<void> removeFromRecent(String id) async {
     final row = await _db.getRecentFile(id);
     if (row == null) return;
+    await _deleteThumbnail(row.thumbnailPath);
+    await _db.deleteRecentFile(id);
+  }
 
+  /// Deletes the actual PDF file, thumbnail, and history entry.
+  Future<bool> deleteFileAndRemoveFromRecent(String id) async {
+    final row = await _db.getRecentFile(id);
+    if (row == null) return false;
+
+    var deleted = false;
     final file = File(row.path);
     if (await file.exists()) {
       await file.delete();
+      deleted = true;
+    } else {
+      deleted = true;
     }
 
-    if (row.thumbnailPath != null) {
-      final thumb = File(row.thumbnailPath!);
-      if (await thumb.exists()) {
-        await thumb.delete();
-      }
-    }
-
+    await _deleteThumbnail(row.thumbnailPath);
     await _db.deleteRecentFile(id);
+    return deleted;
+  }
+
+  /// Backward-compatible alias for [deleteFileAndRemoveFromRecent].
+  Future<void> deleteRecentFile(String id) async {
+    await deleteFileAndRemoveFromRecent(id);
+  }
+
+  /// Clears recent-history entries and thumbnails without deleting PDF files.
+  Future<void> clearRecentHistory() async {
+    final rows = await _db.getAllRecentFiles();
+    for (final row in rows) {
+      await _deleteThumbnail(row.thumbnailPath);
+      await _db.deleteRecentFile(row.id);
+    }
+  }
+
+  Future<void> _deleteThumbnail(String? thumbnailPath) async {
+    if (thumbnailPath == null) return;
+    final thumb = File(thumbnailPath);
+    if (await thumb.exists()) {
+      await thumb.delete();
+    }
+  }
+
+  bool _isAppManagedPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    return normalized.contains('/processed/') ||
+        normalized.endsWith('/processed') ||
+        normalized.contains('PDF Tools');
   }
 
   RecentFileItem _mapRow(RecentFile row) {

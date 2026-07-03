@@ -8,6 +8,7 @@ import 'package:pdf_toolkit/services/storage/recent_files_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:pdf_toolkit/app.dart';
+import 'package:pdf_toolkit/data/local/app_preferences.dart';
 
 void main() {
   testWidgets('Home screen shows PDF tools', (tester) async {
@@ -21,6 +22,9 @@ void main() {
           ),
           recentFilesStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
+          ),
+          appPreferencesProvider.overrideWith(
+            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
           ),
         ],
         child: const PdfToolkitApp(),
@@ -63,16 +67,46 @@ class _FakeRecentFilesService implements RecentFilesService {
   Future<void> deleteRecentFile(String id) async {}
 
   @override
-  bool fileExists(String path) => true;
+  Future<bool> deleteFileAndRemoveFromRecent(String id) async => true;
+
+  @override
+  Future<void> removeFromRecent(String id) async {}
+
+  @override
+  Future<void> clearRecentHistory() async {}
+
+  @override
+  bool canRename(RecentFileItem file) => true;
+
+  @override
+  Future<bool> fileExists(String path) async => true;
+
+  @override
+  bool fileExistsSync(String path) => true;
+
+  @override
+  String formatLocationLabel(RecentFileItem file) => file.path;
+
+  @override
+  String formatFullLocation(RecentFileItem file) => file.path;
+
+  @override
+  Future<void> relinkRecentFile({
+    required String id,
+    required String newPath,
+  }) async {}
+
+  @override
+  Future<int> calculateTemporaryFilesBytes() async => 0;
+
+  @override
+  Future<int> clearTemporaryFiles() async => 0;
 
   @override
   Future<RecentFileItem?> findByPath(String path) async => null;
 
   @override
   String formatFileSize(int bytes) => '$bytes B';
-
-  @override
-  String formatLocation(String path) => path;
 
   @override
   Future<List<RecentFileItem>> getRecentFiles() async => const [];

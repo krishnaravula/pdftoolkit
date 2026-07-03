@@ -8,6 +8,7 @@ import '../../core/di/providers.dart';
 
 import '../../core/widgets/app_widgets.dart';
 
+import '../../data/local/app_preferences.dart';
 import '../../domain/entities/pdf_feature.dart';
 
 import '../../domain/entities/pdf_job.dart';
@@ -24,6 +25,18 @@ class ImageToPdfScreen extends ConsumerStatefulWidget {
 class _ImageToPdfScreenState extends ConsumerState<ImageToPdfScreen>
     with PdfJobMixin {
   List<String> _imagePaths = [];
+  int _jpegQuality = 85;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaults();
+  }
+
+  Future<void> _loadDefaults() async {
+    final prefs = await ref.read(appPreferencesProvider.future);
+    if (mounted) setState(() => _jpegQuality = prefs.imageQuality.jpegQuality);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +136,7 @@ class _ImageToPdfScreenState extends ConsumerState<ImageToPdfScreen>
                             _imagePaths,
 
                             suggestedName: 'images.pdf',
+                            jpegQuality: _jpegQuality,
 
                             onProgress: (c, t, m) => reporter.update(c, t, m),
                           ),
