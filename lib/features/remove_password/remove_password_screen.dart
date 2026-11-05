@@ -123,6 +123,7 @@ class _RemovePasswordScreenState extends ConsumerState<RemovePasswordScreen>
                 password: password,
 
                 suggestedName: 'unlocked.pdf',
+                cancellationToken: reporter.cancellationToken,
               );
         } on InvalidPasswordException {
           if (mounted) {

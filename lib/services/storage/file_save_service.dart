@@ -34,8 +34,8 @@ class FileSaveService {
       if (await file.exists()) {
         await file.delete();
       }
-    } catch (e, st) {
-      debugPrint('FileSaveService.deleteTempFile error: $e\n$st');
+    } catch (_) {
+      debugPrint('FileSaveService.deleteTempFile failed.');
     }
   }
 
@@ -58,12 +58,15 @@ class FileSaveService {
   Future<bool> isValidPdf(String path) async {
     try {
       validateSourceFile(path);
-      final file = File(path);
-      if (await file.length() < 5) return false;
-      final header = await file.openRead(0, 5).first;
-      return String.fromCharCodes(header).startsWith('%PDF');
-    } catch (e, st) {
-      debugPrint('FileSaveService.isValidPdf error: $e\n$st');
+      final file = await File(path).open();
+      try {
+        final header = await file.read(1024);
+        return String.fromCharCodes(header).contains('%PDF-');
+      } finally {
+        await file.close();
+      }
+    } catch (_) {
+      debugPrint('FileSaveService.isValidPdf failed.');
       return false;
     }
   }

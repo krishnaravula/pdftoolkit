@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +17,8 @@ class AppPreferences {
   static const _imageQualityKey = 'pref_image_quality';
   static const _compressionKey = 'pref_compression';
   static const _recentSortKey = 'pref_recent_sort';
+  static const _readingPositionsKey = 'pref_reading_positions';
+  static const _maxReadingPositions = 100;
 
   AppThemePreference get theme =>
       AppThemePreference.fromKey(_prefs.getString(_themeKey));
@@ -51,6 +55,41 @@ class AppPreferences {
 
   Future<void> setRecentFilesSort(RecentFilesSort value) =>
       _prefs.setString(_recentSortKey, value.name);
+
+  /// Returns the last page read for [documentKey], or page 1 for a new file.
+  int readingPageFor(String documentKey) {
+    final value = _readingPositions()[documentKey];
+    return value is int && value > 0 ? value : 1;
+  }
+
+  /// Saves a bounded, local-only reading history so the viewer can resume.
+  Future<void> setReadingPage(String documentKey, int pageNumber) async {
+    if (documentKey.isEmpty || pageNumber < 1) return;
+
+    final positions = _readingPositions();
+    // Reinsert existing keys so the map remains ordered from oldest to newest.
+    positions.remove(documentKey);
+    positions[documentKey] = pageNumber;
+    while (positions.length > _maxReadingPositions) {
+      positions.remove(positions.keys.first);
+    }
+    await _prefs.setString(_readingPositionsKey, jsonEncode(positions));
+  }
+
+  Map<String, int> _readingPositions() {
+    final encoded = _prefs.getString(_readingPositionsKey);
+    if (encoded == null || encoded.isEmpty) return <String, int>{};
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is! Map<String, dynamic>) return <String, int>{};
+      return {
+        for (final entry in decoded.entries)
+          if (entry.value is num) entry.key: (entry.value as num).toInt(),
+      };
+    } on FormatException {
+      return <String, int>{};
+    }
+  }
 }
 
 final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) {

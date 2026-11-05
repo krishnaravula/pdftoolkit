@@ -4,12 +4,14 @@ Prepare the following before submitting to Google Play:
 
 ## Required
 
-- **App name (device):** PDF Tools - Merge, Split & Scan
+- **App name (device):** PDF Tools
 - **Play Store title (≤30 chars):** See [play_listing.md](play_listing.md) — e.g. `PDF Tools: Merge & Scan`
 - **Short / full description:** See [play_listing.md](play_listing.md)
 - **Support email:** `Env.supportEmail` in `lib/core/config/env.dart` (configured)
 - **Privacy policy URL:** Host `docs/privacy_policy.md` and set `Env.privacyPolicyUrl` before release
-- **App icon:** `store/app_icon.png` — run `dart run flutter_launcher_icons` to regenerate Android mipmaps
+- **App icon:** `store/app_icon_v2.png` — full-color launcher source
+- **Adaptive foreground:** `store/app_icon_foreground_v2.png` — transparent foreground source
+- **Previous icon:** `store/app_icon.png` — retained as a rollback asset
 - **Feature graphic:** 1024 x 500 px (create in Play Console or design tool)
 - **Phone screenshots:** Capture each tool flow on a device or emulator (min. 2, recommend 4–8)
 
@@ -41,7 +43,7 @@ flutter build appbundle --release
 ## Data safety
 
 - Declare **files and docs** processed on-device.
-- If you enable AdMob or Billing, declare third-party data collection per Google Play guidance.
+- Confirm that no document content, advertising identifier, or analytics data is collected.
 
 ## Content rating
 

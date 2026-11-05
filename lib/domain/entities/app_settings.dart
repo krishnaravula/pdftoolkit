@@ -37,7 +37,7 @@ enum DefaultSaveLocation {
   static DefaultSaveLocation fromKey(String? key) {
     return DefaultSaveLocation.values.firstWhere(
       (v) => v.name == key,
-      orElse: () => DefaultSaveLocation.askEveryTime,
+      orElse: () => DefaultSaveLocation.documentsPdfTools,
     );
   }
 }

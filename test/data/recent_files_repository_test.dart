@@ -15,11 +15,7 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('recent_repo_test');
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repository = RecentFilesRepository(
-      db,
-      FileStorageService(),
-      PdfService(),
-    );
+    repository = RecentFilesRepository(db, FileStorageService(), PdfService());
   });
 
   tearDown(() async {
@@ -109,6 +105,9 @@ void main() {
 
     final rows = await repository.getRecentFiles();
     expect(rows.single.displayName, 'renamed.pdf');
-    expect(await File('${tempDir.path}/processed/renamed.pdf').exists(), isTrue);
+    expect(
+      await File('${tempDir.path}/processed/renamed.pdf').exists(),
+      isTrue,
+    );
   });
 }

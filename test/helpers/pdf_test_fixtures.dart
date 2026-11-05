@@ -77,9 +77,7 @@ class PdfTestFixtures {
       doc.addPage(
         pw.Page(
           pageFormat: pdf.PdfPageFormat(width, height),
-          build: (context) => pw.Center(
-            child: pw.Text('$textPrefix ${i + 1}'),
-          ),
+          build: (context) => pw.Center(child: pw.Text('$textPrefix ${i + 1}')),
         ),
       );
     }
@@ -132,9 +130,9 @@ class PdfTestFixtures {
       sourceName: 'scan',
     );
     try {
-      return _write(fileName, await doc.encodePdf());
+      return await _write(fileName, await doc.encodePdf());
     } finally {
-      doc.dispose();
+      await doc.dispose();
     }
   }
 
@@ -153,10 +151,10 @@ class PdfTestFixtures {
         for (final page in source.pages) page.rotatedTo(rotation),
       ];
       final bytes = await output.encodePdf();
-      return _write(fileName ?? 'rotated_$quarterTurns.pdf', bytes);
+      return await _write(fileName ?? 'rotated_$quarterTurns.pdf', bytes);
     } finally {
-      output.dispose();
-      source.dispose();
+      await output.dispose();
+      await source.dispose();
     }
   }
 
@@ -181,13 +179,14 @@ class PdfTestFixtures {
         right: right,
         top: top,
       );
-      return _write(fileName, await doc.encodePdf());
+      return await _write(fileName, await doc.encodePdf());
     } finally {
-      doc.dispose();
+      await doc.dispose();
     }
   }
 
-  String _path(String fileName) => '${dir.path}${Platform.pathSeparator}$fileName';
+  String _path(String fileName) =>
+      '${dir.path}${Platform.pathSeparator}$fileName';
 
   Future<String> _write(String fileName, Uint8List bytes) async {
     final path = _path(fileName);

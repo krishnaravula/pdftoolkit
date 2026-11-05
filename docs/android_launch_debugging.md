@@ -7,7 +7,7 @@ If the app crashes before the Home screen on Android 16 (or other devices), capt
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 & $adb logcat -c
-& $adb logcat *:E | findstr /i "FATAL AndroidRuntime pdfrx sqlite pdf_toolkit UnsatisfiedLink PdfToolkitStartup MobileAds MlKit"
+& $adb logcat *:E | findstr /i "FATAL AndroidRuntime pdfrx sqlite pdf_toolkit UnsatisfiedLink PdfToolkitStartup MlKit"
 ```
 
 Launch the app, then look for:

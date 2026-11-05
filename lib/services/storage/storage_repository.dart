@@ -13,11 +13,15 @@ import '../../domain/entities/pdf_feature.dart';
 class StorageRepository {
   static const MethodChannel _channel = MethodChannel('pdf_toolkit/storage');
   static const String _preferredTreeUriKey = 'preferred_export_tree_uri';
+  final _reservedOutputPaths = <String>{};
 
+  /// Set [keepSource] when the caller will delete the input after recording
+  /// the saved copy. It only applies to [File] inputs.
   Future<File> saveProcessedPdfToAppStorage(
     dynamic inputStreamOrBytes,
-    String suggestedFileName,
-  ) async {
+    String suggestedFileName, {
+    bool keepSource = false,
+  }) async {
     final baseRoot = await getApplicationDocumentsDirectory();
     final baseDir = Directory(p.join(baseRoot.path, 'processed'));
     if (!await baseDir.exists()) {
@@ -27,26 +31,40 @@ class StorageRepository {
     final sanitized = ensurePdfFileName(suggestedFileName);
     final outputPath = _uniquePath(baseDir.path, sanitized);
     final file = File(outputPath);
+    _reservedOutputPaths.add(outputPath);
+    try {
+      if (inputStreamOrBytes is List<int>) {
+        await file.writeAsBytes(inputStreamOrBytes, flush: true);
+        return file;
+      }
 
-    if (inputStreamOrBytes is List<int>) {
-      await file.writeAsBytes(inputStreamOrBytes, flush: true);
-      return file;
+      if (inputStreamOrBytes is Stream<List<int>>) {
+        await inputStreamOrBytes.pipe(file.openWrite());
+        return file;
+      }
+
+      if (inputStreamOrBytes is File) {
+        if (keepSource) return await inputStreamOrBytes.copy(outputPath);
+        try {
+          return await inputStreamOrBytes.rename(outputPath);
+        } on FileSystemException {
+          await inputStreamOrBytes.copy(outputPath);
+          await inputStreamOrBytes.delete();
+          return file;
+        }
+      }
+
+      throw const FileAccessException('Unsupported PDF input payload.');
+    } catch (_) {
+      try {
+        if (await file.exists()) await file.delete();
+      } on FileSystemException {
+        debugPrint('Could not remove a partial PDF copy.');
+      }
+      rethrow;
+    } finally {
+      _reservedOutputPaths.remove(outputPath);
     }
-
-    if (inputStreamOrBytes is Stream<List<int>>) {
-      final sink = file.openWrite();
-      await inputStreamOrBytes.pipe(sink);
-      await sink.flush();
-      await sink.close();
-      return file;
-    }
-
-    if (inputStreamOrBytes is File) {
-      await inputStreamOrBytes.copy(outputPath);
-      return file;
-    }
-
-    throw const FileAccessException('Unsupported PDF input payload.');
   }
 
   Future<Uri> exportPdfToTreeUri(
@@ -66,8 +84,31 @@ class StorageRepository {
         throw const FileAccessException('Folder export failed.');
       }
       return Uri.parse(uri);
-    } catch (e) {
-      debugPrint('StorageRepository.exportPdfToTreeUri error: $e');
+    } catch (_) {
+      debugPrint('StorageRepository.exportPdfToTreeUri failed.');
+      rethrow;
+    }
+  }
+
+  Future<Uri> exportPdfToDocuments(
+    File sourceFile,
+    String outputFileName,
+  ) async {
+    try {
+      final normalized = ensurePdfFileName(outputFileName);
+      final uri = await _channel.invokeMethod<String>(
+        'exportPdfToDocuments',
+        <String, dynamic>{
+          'sourceFilePath': sourceFile.path,
+          'outputFileName': normalized,
+        },
+      );
+      if (uri == null || uri.isEmpty) {
+        throw const FileAccessException('Documents export failed.');
+      }
+      return Uri.parse(uri);
+    } catch (_) {
+      debugPrint('StorageRepository.exportPdfToDocuments failed.');
       rethrow;
     }
   }
@@ -128,7 +169,18 @@ class StorageRepository {
       PdfFeatureType.scan => 'scan_$ts.pdf',
       PdfFeatureType.pageEditor => 'reordered_$ts.pdf',
       PdfFeatureType.removePassword => 'unlocked_$ts.pdf',
+      PdfFeatureType.eSign => 'signed_$ts.pdf',
     };
+  }
+
+  String displayNameForTreeUri(Uri uri) {
+    if (uri.pathSegments.isEmpty) return 'Selected folder';
+    final decoded = Uri.decodeComponent(uri.pathSegments.last);
+    final separator = decoded.lastIndexOf(':');
+    if (separator >= 0 && separator < decoded.length - 1) {
+      return decoded.substring(separator + 1);
+    }
+    return decoded.isEmpty ? 'Selected folder' : decoded;
   }
 
   String _timestamp() {
@@ -149,7 +201,7 @@ class StorageRepository {
     while (true) {
       final candidate = i == 0 ? '$stem$ext' : '${stem}_$i$ext';
       final path = p.join(directory, candidate);
-      if (!File(path).existsSync()) {
+      if (!_reservedOutputPaths.contains(path) && !File(path).existsSync()) {
         return path;
       }
       i++;

@@ -37,10 +37,35 @@ void main() {
       );
     });
 
+    test('visual signing uses a signed output name', () {
+      expect(
+        repo.defaultFileNameForFeature(PdfFeatureType.eSign),
+        startsWith('signed_'),
+      );
+    });
+
     test('every feature maps to a non-empty name', () {
       for (final feature in PdfFeatureType.values) {
         expect(repo.defaultFileNameForFeature(feature).isNotEmpty, isTrue);
       }
+    });
+  });
+
+  group('displayNameForTreeUri', () {
+    test('extracts an Android document-tree folder name', () {
+      expect(
+        repo.displayNameForTreeUri(
+          Uri.parse('content://authority/tree/primary%3ADocuments%2FWork'),
+        ),
+        'Documents/Work',
+      );
+    });
+
+    test('falls back for a URI without path segments', () {
+      expect(
+        repo.displayNameForTreeUri(Uri.parse('content://authority')),
+        'Selected folder',
+      );
     });
   });
 }

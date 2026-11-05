@@ -4,7 +4,7 @@ Copy the sections below into Google Play Console. Character limits are noted for
 
 **Version:** 1.0.0  
 **Min Android:** 10 (API 29)  
-**Last updated:** June 2026
+**Last updated:** November 2026
 
 ---
 
@@ -71,9 +71,11 @@ KEY FEATURES
 
 • Remove Password — Unlock password-protected PDFs when you have the correct password.
 
-• Reorder Pages — Drag to rearrange pages or delete unwanted ones before saving.
+• Sign PDF — Draw, type, or import a visual signature, optionally add a date, then move and resize the marks on the page. This is a visual mark, not a certificate-based digital signature or identity verification.
 
-• Built-in PDF Viewer — Open and preview files without leaving the app.
+• Organize Pages — Preview and select pages, drag to rearrange them, rotate or duplicate pages, insert another PDF, extract a selection, and undo changes before saving.
+
+• Built-in PDF Viewer — Search and select text, browse page thumbnails and document outlines, jump to a page, and automatically continue where you stopped reading.
 
 • Recent Files — Return to your latest work quickly with thumbnail previews.
 
@@ -139,9 +141,10 @@ What's included in this first release:
 • Convert images to PDF
 • Scan documents with your camera — crop, enhance, and export multi-page PDFs
 • Remove password protection from PDFs (with the correct password)
-• Reorder or delete pages before saving
-• Built-in PDF viewer
+• Visual page organizer with reorder, rotate, duplicate, insert, extract, delete, and undo/redo
+• Built-in PDF viewer with text search and selection, thumbnails, outlines, page jump, and reading-position resume
 • Recent files with thumbnails for quick access
+• Visual PDF signing with optional on-device signature reuse
 • Save, open, and share results locally
 
 All processing runs on your device — no cloud uploads, no account required.
@@ -158,6 +161,6 @@ Thank you for downloading PDF Tools. We'd love your feedback!
 | Category | Productivity (or Tools) |
 | Tags / keywords | merge pdf, split pdf, compress pdf, scan to pdf, image to pdf, offline pdf |
 | Content rating | Utilities / productivity, no online UGC |
-| Data safety | Files and docs processed on-device; declare AdMob/Billing only if enabled in release build |
+| Data safety | Files and documents are processed on-device; no ads or analytics |
 
 See [README.md](README.md) for asset requirements (screenshots, feature graphic) and release build steps.

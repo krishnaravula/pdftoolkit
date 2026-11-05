@@ -39,9 +39,12 @@ Future<List<PageBoxes>> readPageBoxes(String path) async {
   final doc = await PdfDocument.openFile(path);
   try {
     final address = await doc.useNativeDocumentHandle((h) => h);
-    return await PdfrxEntryFunctions.instance.compute(_readBoxesOnWorker, address);
+    return await PdfrxEntryFunctions.instance.compute(
+      _readBoxesOnWorker,
+      address,
+    );
   } finally {
-    doc.dispose();
+    await doc.dispose();
   }
 }
 
@@ -55,17 +58,14 @@ Future<void> applyCropBox(
   required double top,
 }) async {
   final address = await doc.useNativeDocumentHandle((h) => h);
-  await PdfrxEntryFunctions.instance.compute(
-    _applyCropBoxOnWorker,
-    (
-      address: address,
-      pageIndex: pageIndex,
-      left: left,
-      bottom: bottom,
-      right: right,
-      top: top,
-    ),
-  );
+  await PdfrxEntryFunctions.instance.compute(_applyCropBoxOnWorker, (
+    address: address,
+    pageIndex: pageIndex,
+    left: left,
+    bottom: bottom,
+    right: right,
+    top: top,
+  ));
 }
 
 List<PageBoxes> _readBoxesOnWorker(int address) {

@@ -44,6 +44,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'Scan documents',
       'Use your camera to scan, crop, enhance, and export multi-page PDFs.',
     ),
+    (
+      Icons.picture_as_pdf_outlined,
+      'Your everyday PDF viewer',
+      'Open a PDF from Android Files, choose PDF Tools, and tap Always to make it your default.',
+    ),
   ];
 
   Future<void> _finish() async {

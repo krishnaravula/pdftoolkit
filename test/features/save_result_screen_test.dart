@@ -8,53 +8,110 @@ import 'package:pdf_toolkit/core/di/providers.dart';
 import 'package:pdf_toolkit/domain/entities/pdf_feature.dart';
 import 'package:pdf_toolkit/domain/entities/recent_file.dart';
 import 'package:pdf_toolkit/features/shared/save_result_screen.dart';
-import 'package:pdf_toolkit/services/monetization/ad_service.dart';
 import 'package:pdf_toolkit/services/storage/file_save_service.dart';
 import 'package:pdf_toolkit/services/storage/recent_files_service.dart';
 import 'package:pdf_toolkit/services/storage/storage_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('Save result screen saves to app storage and shows actions', (
     tester,
   ) async {
-    final fakeSaveService = _FakeFileSaveService();
-    final fakeStorage = _FakeStorageRepository();
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          fileSaveServiceProvider.overrideWithValue(fakeSaveService),
-          storageRepositoryProvider.overrideWithValue(fakeStorage),
-          recentFilesServiceProvider.overrideWithValue(
-            _FakeRecentFilesService(),
-          ),
-          adsEnabledProvider.overrideWith((ref) async => false),
-          adServiceProvider.overrideWithValue(NoOpAdService()),
-        ],
-        child: const MaterialApp(
-          home: SaveResultScreen(
-            feature: PdfFeatureType.merge,
-            pendingFiles: [
-              PendingSaveFile(tempPath: '/tmp/a.pdf', suggestedName: 'a.pdf'),
-            ],
-          ),
-        ),
-      ),
+    await _pumpSaveResult(
+      tester,
+      files: const [
+        PendingSaveFile(tempPath: '/tmp/a.pdf', suggestedName: 'a.pdf'),
+      ],
+      fileSave: _FakeFileSaveService(),
+      storage: _FakeStorageRepository(),
+      recentFiles: _FakeRecentFilesService(),
     );
 
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.text('Where should this PDF be saved?'), findsOneWidget);
+    await tester.tap(find.text('Keep in PDF Tools only'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Save result'), findsOneWidget);
+    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Your PDF is ready'), findsOneWidget);
+    expect(find.text('Open PDF'), findsOneWidget);
   });
+
+  testWidgets(
+    'Retry resumes after a partial save and preserves the pending input',
+    (tester) async {
+      final fileSave = _FakeFileSaveService();
+      final storage = _FakeStorageRepository();
+      final recentFiles = _FakeRecentFilesService()
+        ..failOnceFor = '/saved/b.pdf';
+      await _pumpSaveResult(
+        tester,
+        files: const [
+          PendingSaveFile(tempPath: '/tmp/a.pdf', suggestedName: 'a.pdf'),
+          PendingSaveFile(tempPath: '/tmp/b.pdf', suggestedName: 'b.pdf'),
+        ],
+        fileSave: fileSave,
+        storage: storage,
+        recentFiles: recentFiles,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved 1 of 2 PDFs'), findsOneWidget);
+      expect(recentFiles.recorded, ['/saved/a.pdf']);
+      expect(storage.discarded, ['/saved/b.pdf']);
+      expect(fileSave.deleted, ['/tmp/a.pdf']);
+
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep in PDF Tools only'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 PDFs are ready'), findsOneWidget);
+      expect(storage.copied, ['/tmp/a.pdf', '/tmp/b.pdf', '/tmp/b.pdf']);
+      expect(recentFiles.recorded, ['/saved/a.pdf', '/saved/b.pdf']);
+      expect(fileSave.deleted, ['/tmp/a.pdf', '/tmp/b.pdf']);
+    },
+  );
+}
+
+Future<void> _pumpSaveResult(
+  WidgetTester tester, {
+  required List<PendingSaveFile> files,
+  required _FakeFileSaveService fileSave,
+  required _FakeStorageRepository storage,
+  required _FakeRecentFilesService recentFiles,
+}) {
+  SharedPreferences.setMockInitialValues({
+    'pref_save_location': 'askEveryTime',
+  });
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        fileSaveServiceProvider.overrideWithValue(fileSave),
+        storageRepositoryProvider.overrideWithValue(storage),
+        recentFilesServiceProvider.overrideWithValue(recentFiles),
+      ],
+      child: MaterialApp(
+        home: SaveResultScreen(
+          feature: PdfFeatureType.split,
+          pendingFiles: files,
+        ),
+      ),
+    ),
+  );
 }
 
 class _FakeFileSaveService extends FileSaveService {
+  final deleted = <String>[];
+
   @override
-  Future<void> deleteTempFile(String path) async {}
+  Future<void> deleteTempFile(String path) async => deleted.add(path);
 }
 
 class _FakeRecentFilesService implements RecentFilesService {
+  final recorded = <String>[];
+  String? failOnceFor;
+
   @override
   Future<RecentFileItem> addFromOutput({
     required String outputPath,
@@ -62,6 +119,11 @@ class _FakeRecentFilesService implements RecentFilesService {
     String? exportedUri,
     bool pinned = false,
   }) async {
+    if (outputPath == failOnceFor) {
+      failOnceFor = null;
+      throw StateError('Recent write failed');
+    }
+    recorded.add(outputPath);
     return RecentFileItem(
       id: '1',
       displayName: outputPath.split('/').last,
@@ -137,14 +199,6 @@ class _FakeRecentFilesService implements RecentFilesService {
   Stream<List<RecentFileItem>> watchRecentFiles() => const Stream.empty();
 
   @override
-  Future<void> cleanupOldProcessedFiles({
-    Duration maxAge = const Duration(days: 30),
-  }) async {}
-
-  @override
-  void markResultScreenActivePaths(List<String> paths) {}
-
-  @override
   Future<void> setExportedUri({
     required String id,
     required String exportedUri,
@@ -152,23 +206,40 @@ class _FakeRecentFilesService implements RecentFilesService {
 
   @override
   Future<void> setPinned({required String id, required bool pinned}) async {}
-
-  @override
-  void unmarkResultScreenActivePaths(List<String> paths) {}
 }
 
 class _FakeStorageRepository extends StorageRepository {
+  final copied = <String>[];
+  final discarded = <String>[];
+
   @override
   Future<File> saveProcessedPdfToAppStorage(
     dynamic inputStreamOrBytes,
-    String suggestedFileName,
-  ) async {
-    final dir = await Directory.systemTemp.createTemp('save_result_test');
-    final file = File('${dir.path}/$suggestedFileName');
-    await file.writeAsBytes('%PDF-1.7'.codeUnits);
-    return file;
+    String suggestedFileName, {
+    bool keepSource = false,
+  }) async {
+    expect(keepSource, isTrue);
+    copied.add((inputStreamOrBytes as File).path);
+    return _FakeSavedFile('/saved/$suggestedFileName', discarded);
   }
 
   @override
   Future<Uri?> getPreferredExportTreeUri() async => null;
+}
+
+class _FakeSavedFile implements File {
+  _FakeSavedFile(this.path, this.discarded);
+
+  @override
+  final String path;
+  final List<String> discarded;
+
+  @override
+  Future<File> delete({bool recursive = false}) async {
+    discarded.add(path);
+    return this;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

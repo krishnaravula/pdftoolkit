@@ -1,8 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
-import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/di/providers.dart';
@@ -37,9 +38,9 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   late List<TextEditingController> _nameControllers;
   late final StorageRepository _storage;
   late final RecentFilesService _recentFilesService;
-  bool _saving = true;
-  List<String> _savedPaths = <String>[];
-  List<String?> _exportedUris = <String?>[];
+  bool _saving = false;
+  final _savedPaths = <String>[];
+  final _exportedUris = <String?>[];
   String? _error;
 
   @override
@@ -71,47 +72,45 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
   }
 
   Future<void> _saveToAppStorageAndMaybeExport() async {
+    if (_saving) return;
+    final fileSave = ref.read(fileSaveServiceProvider);
+    final pendingFiles = widget.pendingFiles;
+    final feature = widget.feature;
+    final names = _nameControllers.map((c) => c.text.trim()).toList();
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
-      final storage = ref.read(storageRepositoryProvider);
-      final recentFiles = ref.read(recentFilesServiceProvider);
-      final appSaved = <String>[];
-      final exported = <String?>[];
-
-      for (var i = 0; i < widget.pendingFiles.length; i++) {
-        final pending = widget.pendingFiles[i];
-        final source = File(pending.tempPath);
-        final file = await storage.saveProcessedPdfToAppStorage(
-          source,
-          _nameControllers[i].text.trim(),
+      for (var i = _savedPaths.length; i < pendingFiles.length; i++) {
+        final tempPath = pendingFiles[i].tempPath;
+        final file = await _storage.saveProcessedPdfToAppStorage(
+          File(tempPath),
+          names[i],
+          keepSource: true,
         );
-        appSaved.add(file.path);
-        exported.add(null);
+        try {
+          await _recentFilesService.addFromOutput(
+            outputPath: file.path,
+            feature: feature,
+          );
+        } catch (_) {
+          try {
+            await file.delete();
+          } on FileSystemException {
+            debugPrint('Could not remove an unregistered PDF result.');
+          }
+          rethrow;
+        }
+        _savedPaths.add(file.path);
+        _exportedUris.add(null);
+        await fileSave.deleteTempFile(tempPath);
       }
-
-      for (var i = 0; i < widget.pendingFiles.length; i++) {
-        await ref
-            .read(fileSaveServiceProvider)
-            .deleteTempFile(widget.pendingFiles[i].tempPath);
-      }
-
-      for (var i = 0; i < appSaved.length; i++) {
-        await recentFiles.addFromOutput(
-          outputPath: appSaved[i],
-          feature: widget.feature,
-          exportedUri: null,
-        );
-      }
-
-      recentFiles.markResultScreenActivePaths(appSaved);
-      _savedPaths = appSaved;
-      _exportedUris = exported;
-
-      await _autoExportIfPreferred();
 
       if (!mounted) return;
-      setState(() {
-        _saving = false;
-      });
+      setState(() => _saving = false);
+
+      await _autoExportIfPreferred();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -124,9 +123,6 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
 
   @override
   void dispose() {
-    if (_savedPaths.isNotEmpty) {
-      _recentFilesService.unmarkResultScreenActivePaths(_savedPaths);
-    }
     for (final c in _nameControllers) {
       c.dispose();
     }
@@ -135,10 +131,100 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
 
   Future<void> _autoExportIfPreferred() async {
     final prefs = await ref.read(appPreferencesProvider.future);
-    if (prefs.defaultSaveLocation != DefaultSaveLocation.previouslySelected) {
-      return;
+    switch (prefs.defaultSaveLocation) {
+      case DefaultSaveLocation.askEveryTime:
+        await _askWhereToSave();
+        return;
+      case DefaultSaveLocation.documentsPdfTools:
+        await _exportToDocuments();
+        return;
+      case DefaultSaveLocation.previouslySelected:
+        await _exportToPreferredFolder();
     }
+  }
 
+  Future<void> _askWhereToSave() async {
+    if (!mounted) return;
+    final choice = await showModalBottomSheet<_ExportChoice>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text(
+                  'Where should this PDF be saved?',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('Documents/PDF Tools'),
+                subtitle: const Text('Easy to find in the Android Files app'),
+                onTap: () => Navigator.pop(context, _ExportChoice.documents),
+              ),
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_outlined),
+                title: const Text('Choose another folder'),
+                subtitle: const Text('Select a folder and remember access'),
+                onTap: () => Navigator.pop(context, _ExportChoice.folder),
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Keep in PDF Tools only'),
+                subtitle: const Text('Available from the Recent tab'),
+                onTap: () => Navigator.pop(context, _ExportChoice.appOnly),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    switch (choice) {
+      case _ExportChoice.documents:
+        await _exportToDocuments();
+      case _ExportChoice.folder:
+        await _saveToFolder(forcePick: true);
+      case _ExportChoice.appOnly:
+      case null:
+        return;
+    }
+  }
+
+  Future<void> _exportToDocuments() async {
+    final storage = ref.read(storageRepositoryProvider);
+    try {
+      for (var i = 0; i < _savedPaths.length; i++) {
+        if (_exportedUris[i] != null) continue;
+        final exported = await storage.exportPdfToDocuments(
+          File(_savedPaths[i]),
+          _nameControllers[i].text.trim(),
+        );
+        await _recordExport(i, exported);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to Documents/PDF Tools')),
+      );
+    } catch (_) {
+      debugPrint('Documents export failed.');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'PDF saved securely in the app. Documents export failed.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportToPreferredFolder() async {
     final storage = ref.read(storageRepositoryProvider);
     final treeUri = await storage.getPreferredExportTreeUri();
     if (treeUri == null) return;
@@ -157,34 +243,27 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
     }
     try {
       for (var i = 0; i < _savedPaths.length; i++) {
+        if (_exportedUris[i] != null) continue;
         final exported = await storage.exportPdfToTreeUri(
           treeUri,
           File(_savedPaths[i]),
           _nameControllers[i].text.trim(),
         );
-        _exportedUris[i] = exported.toString();
-        final recent = await ref
-            .read(recentFilesServiceProvider)
-            .findByPath(_savedPaths[i]);
-        if (recent != null) {
-          await ref
-              .read(recentFilesServiceProvider)
-              .setExportedUri(id: recent.id, exportedUri: exported.toString());
-        }
+        await _recordExport(i, exported);
       }
       if (!mounted) return;
-      final folderLabel = p.basename(treeUri.path);
+      final folderLabel = storage.displayNameForTreeUri(treeUri);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Saved to $folderLabel'),
           action: SnackBarAction(
             label: 'Change Folder',
-            onPressed: _saveToFolder,
+            onPressed: () => _saveToFolder(forcePick: true),
           ),
         ),
       );
-    } catch (e, st) {
-      debugPrint('Auto-export failed: $e\n$st');
+    } catch (_) {
+      debugPrint('Auto-export failed.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -197,9 +276,24 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
     }
   }
 
-  Future<void> _saveToFolder() async {
+  Future<void> _recordExport(int index, Uri exported) async {
+    if (mounted) {
+      setState(() => _exportedUris[index] = exported.toString());
+    } else {
+      _exportedUris[index] = exported.toString();
+    }
+    final recent = await _recentFilesService.findByPath(_savedPaths[index]);
+    if (recent != null) {
+      await _recentFilesService.setExportedUri(
+        id: recent.id,
+        exportedUri: exported.toString(),
+      );
+    }
+  }
+
+  Future<void> _saveToFolder({bool forcePick = false, int? onlyIndex}) async {
     final storage = ref.read(storageRepositoryProvider);
-    var treeUri = await storage.getPreferredExportTreeUri();
+    var treeUri = forcePick ? null : await storage.getPreferredExportTreeUri();
     if (treeUri == null ||
         !await storage.hasPersistedWritePermission(treeUri)) {
       treeUri = await storage.pickExportTreeUri();
@@ -208,31 +302,26 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
       await storage.setPreferredExportTreeUri(treeUri);
     }
     try {
-      for (var i = 0; i < _savedPaths.length; i++) {
+      final indices = onlyIndex == null
+          ? List<int>.generate(_savedPaths.length, (index) => index)
+          : <int>[onlyIndex];
+      for (final i in indices) {
         final exported = await storage.exportPdfToTreeUri(
           treeUri,
           File(_savedPaths[i]),
           _nameControllers[i].text.trim(),
         );
-        _exportedUris[i] = exported.toString();
-        final recent = await ref
-            .read(recentFilesServiceProvider)
-            .findByPath(_savedPaths[i]);
-        if (recent != null) {
-          await ref
-              .read(recentFilesServiceProvider)
-              .setExportedUri(id: recent.id, exportedUri: exported.toString());
-        }
+        await _recordExport(i, exported);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Saved to ${p.basename(treeUri.path)}'),
+          content: Text('Saved to ${storage.displayNameForTreeUri(treeUri)}'),
           action: SnackBarAction(label: 'Open', onPressed: _openBestAvailable),
         ),
       );
-    } catch (e, st) {
-      debugPrint('Manual folder export failed: $e\n$st');
+    } catch (_) {
+      debugPrint('Manual folder export failed.');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -262,9 +351,9 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
     await shareService.openFile(_savedPaths.first);
   }
 
-  Future<void> _renameFirstFile() async {
-    if (_savedPaths.isEmpty) return;
-    final oldPath = _savedPaths.first;
+  Future<void> _renameFile(int index) async {
+    if (index < 0 || index >= _savedPaths.length) return;
+    final oldPath = _savedPaths[index];
     final oldName = p.basenameWithoutExtension(oldPath);
     final controller = TextEditingController(text: oldName);
     final newValue = await showDialog<String>(
@@ -304,7 +393,6 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
       );
       return;
     }
-    final renamed = await file.rename(newPath);
     final recent = await ref
         .read(recentFilesServiceProvider)
         .findByPath(oldPath);
@@ -312,10 +400,13 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
       await ref
           .read(recentFilesServiceProvider)
           .renameRecentFile(id: recent.id, newName: newName);
+    } else {
+      await file.rename(newPath);
     }
     if (!mounted) return;
     setState(() {
-      _savedPaths[0] = renamed.path;
+      _savedPaths[index] = newPath;
+      _nameControllers[index].text = newName;
     });
   }
 
@@ -324,17 +415,20 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
     final shareService = ref.read(shareServiceProvider);
     final recentFiles = ref.read(recentFilesServiceProvider);
 
-    return Scaffold(
+    final incomplete = _savedPaths.length < widget.pendingFiles.length;
+    final scaffold = Scaffold(
       appBar: AppBar(
-        title: Text(_saving ? 'Save result' : 'Saved'),
+        title: Text(_saving || incomplete ? 'Save result' : 'Saved'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () {
-            widget.onDone?.call();
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
+          onPressed: _saving
+              ? null
+              : () {
+                  widget.onDone?.call();
+                  if (context.canPop()) {
+                    context.pop();
+                  }
+                },
         ),
       ),
       body: SafeArea(
@@ -344,7 +438,9 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Icon(
-                _saving ? Icons.save_outlined : Icons.check_circle_outline,
+                _saving || incomplete
+                    ? Icons.save_outlined
+                    : Icons.check_circle_outline,
                 size: 48,
                 color: !_saving
                     ? Theme.of(context).colorScheme.primary
@@ -353,8 +449,12 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
               const SizedBox(height: 12),
               Text(
                 _saving
-                    ? 'Saving your file(s) to app storage'
-                    : '${_savedPaths.length} file(s) saved successfully',
+                    ? 'Saving your PDF${widget.pendingFiles.length == 1 ? '' : 's'}…'
+                    : incomplete
+                    ? 'Saved ${_savedPaths.length} of ${widget.pendingFiles.length} PDFs'
+                    : _savedPaths.length == 1
+                    ? 'Your PDF is ready'
+                    : '${_savedPaths.length} PDFs are ready',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
@@ -366,7 +466,7 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
               const SizedBox(height: 8),
               Expanded(
                 child: ListView.separated(
-                  itemCount: _savedPaths.length,
+                  itemCount: _saving ? 0 : _savedPaths.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     return Card(
@@ -413,9 +513,21 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
                                   label: const Text('Share'),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: _saveToFolder,
+                                  onPressed: () =>
+                                      _saveToFolder(onlyIndex: index),
                                   icon: const Icon(Icons.folder_open),
-                                  label: const Text('Save to Folder'),
+                                  label: Text(
+                                    _exportedUris[index] == null
+                                        ? 'Choose folder'
+                                        : 'Save another copy',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => _renameFile(index),
+                                  icon: const Icon(
+                                    Icons.drive_file_rename_outline,
+                                  ),
+                                  label: const Text('Rename'),
                                 ),
                               ],
                             ),
@@ -435,28 +547,48 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
                 ),
               ],
               const SizedBox(height: 12),
-              AppPrimaryButton(
-                label: 'Rename',
-                icon: Icons.drive_file_rename_outline,
-                isLoading: false,
-                onPressed: _savedPaths.isEmpty ? null : _renameFirstFile,
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () {
-                  widget.onDone?.call();
-                  if (context.canPop()) context.pop();
-                },
-                icon: const Icon(Icons.done),
-                label: const Text('Done'),
-              ),
+              if (!_saving && incomplete)
+                AppPrimaryButton(
+                  label: 'Try again',
+                  icon: Icons.refresh,
+                  onPressed: _saveToAppStorageAndMaybeExport,
+                )
+              else if (!_saving && _savedPaths.length == 1)
+                AppPrimaryButton(
+                  label: 'Open PDF',
+                  icon: Icons.visibility_outlined,
+                  onPressed: () => _openInViewer(_savedPaths.first),
+                )
+              else if (!_saving)
+                AppPrimaryButton(
+                  label: 'Done',
+                  icon: Icons.done,
+                  onPressed: () {
+                    widget.onDone?.call();
+                    if (context.canPop()) context.pop();
+                  },
+                ),
+              if (!_saving && !incomplete && _savedPaths.length == 1) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    widget.onDone?.call();
+                    if (context.canPop()) context.pop();
+                  },
+                  icon: const Icon(Icons.done),
+                  label: const Text('Done'),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+    return PopScope(canPop: !_saving, child: scaffold);
   }
 }
+
+enum _ExportChoice { documents, folder, appOnly }
 
 /// Navigates to the save-result screen for one or more pending files.
 void showSaveResult(

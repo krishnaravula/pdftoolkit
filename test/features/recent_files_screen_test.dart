@@ -28,7 +28,8 @@ void main() {
             (ref) => Stream.value(const []),
           ),
           appPreferencesProvider.overrideWith(
-            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
+            (ref) async =>
+                AppPreferences(await SharedPreferences.getInstance()),
           ),
         ],
         child: const MaterialApp(home: RecentFilesScreen()),
@@ -65,7 +66,8 @@ void main() {
           shareServiceProvider.overrideWithValue(_FakeShareService()),
           recentFilesStreamProvider.overrideWith((ref) => Stream.value(files)),
           appPreferencesProvider.overrideWith(
-            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
+            (ref) async =>
+                AppPreferences(await SharedPreferences.getInstance()),
           ),
         ],
         child: const MaterialApp(home: RecentFilesScreen()),
@@ -167,18 +169,10 @@ class _FakeRecentFilesService implements RecentFilesService {
   Stream<List<RecentFileItem>> watchRecentFiles() => const Stream.empty();
 
   @override
-  Future<void> cleanupOldProcessedFiles({
-    Duration maxAge = const Duration(days: 30),
-  }) async {}
-
-  @override
   Future<int> calculateTemporaryFilesBytes() async => 0;
 
   @override
   Future<int> clearTemporaryFiles() async => 0;
-
-  @override
-  void markResultScreenActivePaths(List<String> paths) {}
 
   @override
   Future<void> setExportedUri({
@@ -188,7 +182,4 @@ class _FakeRecentFilesService implements RecentFilesService {
 
   @override
   Future<void> setPinned({required String id, required bool pinned}) async {}
-
-  @override
-  void unmarkResultScreenActivePaths(List<String> paths) {}
 }

@@ -1,8 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
-
 import '../../core/config/env.dart';
 import '../../domain/entities/pdf_feature.dart';
 import '../../domain/entities/recent_file.dart';
@@ -15,7 +13,6 @@ class RecentFilesService {
 
   final RecentFilesRepository _repository;
   final FileStorageService _storage;
-  final Set<String> _activeResultPaths = <String>{};
 
   Stream<List<RecentFileItem>> watchRecentFiles() =>
       _repository.watchRecentFiles();
@@ -35,8 +32,8 @@ class RecentFilesService {
         exportedUri: exportedUri,
         pinned: pinned,
       );
-    } catch (e, st) {
-      debugPrint('RecentFilesService.addFromOutput error: $e\n$st');
+    } catch (_) {
+      debugPrint('RecentFilesService.addFromOutput failed.');
       rethrow;
     }
   }
@@ -92,29 +89,6 @@ class RecentFilesService {
     return _repository.setPinned(id: id, pinned: pinned);
   }
 
-  void markResultScreenActivePaths(List<String> paths) {
-    _activeResultPaths.addAll(paths);
-  }
-
-  void unmarkResultScreenActivePaths(List<String> paths) {
-    for (final path in paths) {
-      _activeResultPaths.remove(path);
-    }
-  }
-
-  Future<void> cleanupOldProcessedFiles({
-    Duration maxAge = const Duration(days: 30),
-  }) async {
-    final all = await _repository.getRecentFiles();
-    final cutoff = DateTime.now().subtract(maxAge);
-    for (final item in all) {
-      if (item.pinned) continue;
-      if (_activeResultPaths.contains(item.path)) continue;
-      if (item.createdAt.isAfter(cutoff)) continue;
-      await _repository.deleteFileAndRemoveFromRecent(item.id);
-    }
-  }
-
   Future<int> calculateTemporaryFilesBytes() async {
     var total = 0;
     final tempDir = await _storage.tempDirectory;
@@ -123,12 +97,7 @@ class RecentFilesService {
     final thumbDir = await _storage.thumbnailsDirectory;
     total += await _directorySize(thumbDir);
 
-    final cacheDir = Directory(
-      p.join((await _storage.tempDirectory), '..', Env.tempDirName),
-    );
-    if (await cacheDir.exists()) {
-      total += await _directorySize(cacheDir.path);
-    }
+    total += await _directorySize(await _storage.openedPdfsDirectory);
 
     return total;
   }
@@ -137,6 +106,7 @@ class RecentFilesService {
     var cleared = 0;
     cleared += await _clearDirectory(await _storage.tempDirectory);
     cleared += await _clearDirectory(await _storage.thumbnailsDirectory);
+    cleared += await _clearDirectory(await _storage.openedPdfsDirectory);
     return cleared;
   }
 

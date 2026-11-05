@@ -67,14 +67,11 @@
 -keep class biz.cunning.cunning_document_scanner.** { *; }
 -keep class com.mr.flutter.plugin.filepicker.** { *; }
 -keep class io.flutter.plugins.flutter_plugin_android_lifecycle.** { *; }
--keep class io.flutter.plugins.googlemobileads.** { *; }
--keep class io.flutter.plugins.inapppurchase.** { *; }
 -keep class com.crazecoder.openfile.** { *; }
 -keep class com.baseflow.permissionhandler.** { *; }
 -keep class dev.fluttercommunity.plus.share.** { *; }
 -keep class io.flutter.plugins.sharedpreferences.** { *; }
 -keep class io.flutter.plugins.urllauncher.** { *; }
--keep class io.flutter.plugins.webviewflutter.** { *; }
 
 # package:jni / package:jni_flutter (path_provider_android, etc.)
 # consumer-rules.pro from those plugins is merged automatically; keep explicitly.
@@ -88,35 +85,11 @@
 -keep class **$MessagesPigeonUtils { *; }
 -keep class dev.flutter.pigeon.** { *; }
 
-# Kotlin enums (Pigeon enums in billing, shared_preferences, etc.)
+# Kotlin enums used by generated plugin code
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
-
-# ---------------------------------------------------------------------------
-# Google Play Billing (in_app_purchase_android → billingclient 8.x)
-# ---------------------------------------------------------------------------
--keep class com.android.vending.billing.** { *; }
--keep class com.android.billingclient.** { *; }
--keep interface com.android.billingclient.** { *; }
--dontwarn com.android.billingclient.**
-
-# Billing JSON payloads are parsed reflectively by the Play Billing library.
--keepclassmembers class * {
-    @com.google.gson.annotations.SerializedName <fields>;
-}
-
-# ---------------------------------------------------------------------------
-# Google Mobile Ads (AdMob) + User Messaging Platform (consent)
-# MobileAdsInitProvider runs at process start (before Flutter) — must not be stripped.
-# ---------------------------------------------------------------------------
--keep class com.google.android.gms.ads.** { *; }
--keep class com.google.android.gms.ads.MobileAdsInitProvider { *; }
--keep class com.google.ads.** { *; }
--keep class com.google.android.ump.** { *; }
--dontwarn com.google.android.gms.**
--dontwarn com.google.ads.**
 
 # ---------------------------------------------------------------------------
 # ML Kit (cunning_document_scanner) — MlKitInitProvider also runs at app startup
@@ -134,7 +107,7 @@
 -keepnames class com.google.firebase.components.ComponentRegistrar
 -dontwarn com.google.firebase.**
 
-# Play Services / Dynamite (ML Kit + AdMob startup)
+# Play Services / Dynamite (ML Kit)
 -keep class com.google.android.gms.dynamite.** { *; }
 -keep class com.google.android.gms.tasks.** { *; }
 -keep class com.google.android.gms.common.** { *; }
@@ -143,19 +116,7 @@
 }
 
 # ---------------------------------------------------------------------------
-# WebView (google_mobile_ads dependency)
-# ---------------------------------------------------------------------------
--keep class android.webkit.** { *; }
--keepclassmembers class * extends android.webkit.WebViewClient {
-    public void *(android.webkit.WebView, java.lang.String, android.graphics.Bitmap);
-    public boolean *(android.webkit.WebView, java.lang.String);
-}
--keepclassmembers class * extends android.webkit.WebChromeClient {
-    public void *(android.webkit.WebView, java.lang.String);
-}
-
-# ---------------------------------------------------------------------------
-# Gson — not used directly by this app; kept for Play Services / Billing transitives
+# Gson — not used directly by this app; kept for Play Services transitives
 # ---------------------------------------------------------------------------
 -dontwarn sun.misc.**
 -keep class com.google.gson.** { *; }
@@ -276,7 +237,7 @@
 -keep class biz.cunning.cunning_document_scanner.fallback.models.** { *; }
 
 # ---------------------------------------------------------------------------
-# AndroidX Lifecycle (used by google_mobile_ads)
+# AndroidX Lifecycle (used by Flutter plugins)
 # ---------------------------------------------------------------------------
 -keep class androidx.lifecycle.** { *; }
 -dontwarn androidx.lifecycle.**
@@ -284,7 +245,7 @@
 # ---------------------------------------------------------------------------
 # AndroidX Startup + WorkManager + Room (release crash fix)
 # InitializationProvider → WorkManagerInitializer → WorkDatabase (Room)
-# Pulled in transitively by Play Services / Ads. R8 must not strip _Impl classes.
+# Pulled in transitively by Android libraries. R8 must not strip _Impl classes.
 # ---------------------------------------------------------------------------
 -keep class androidx.startup.** { *; }
 -keepclassmembers class * implements androidx.startup.Initializer {

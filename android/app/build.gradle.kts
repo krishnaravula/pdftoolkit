@@ -27,7 +27,9 @@ fun decodeDartDefines(): Map<String, String> {
 
 val dartDefines = decodeDartDefines()
 val disableMinify = dartDefines["DISABLE_MINIFY"] == "true"
-val enableAds = dartDefines["ENABLE_ADS"] == "true"
+val releaseBuildRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
 
 android {
     namespace = "com.pdftoolkit.pdf_tool"
@@ -68,17 +70,6 @@ android {
         }
     }
 
-    // When ENABLE_ADS=true, merge ads/AndroidManifest.xml (APPLICATION_ID only).
-    // Do not replace src/main/AndroidManifest.xml — that removes MainActivity/launcher.
-    if (enableAds) {
-        sourceSets {
-            getByName("main") {
-                manifest.srcFile("src/main/AndroidManifest.xml")
-                manifest.srcFile("src/ads/AndroidManifest.xml")
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = !disableMinify
@@ -89,12 +80,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.findByName("release")
-                ?: error(
+            val configuredReleaseSigning = signingConfigs.findByName("release")
+            if (configuredReleaseSigning != null) {
+                signingConfig = configuredReleaseSigning
+            } else if (releaseBuildRequested) {
+                error(
                     "Release signing is not configured. Copy android/key.properties.example " +
                         "to android/key.properties and set your upload keystore passwords " +
                         "before building for Play Console.",
                 )
+            }
         }
     }
 }

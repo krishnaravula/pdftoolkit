@@ -4,6 +4,7 @@ import 'package:ffi/ffi.dart';
 import 'package:pdfium_dart/pdfium_dart.dart' as pdfium;
 import 'package:pdfrx/pdfrx.dart';
 
+import '../../domain/entities/pdf_job.dart';
 import 'pdf_merge_page_size.dart';
 import 'pdf_page_geometry.dart';
 
@@ -34,7 +35,8 @@ class MergeNormalizationResult {
 typedef _MergeMessage = ({
   int destAddress,
   List<int> srcAddresses,
-  List<int> pageCounts,
+  List<List<int>> pageRefs,
+  int destStartIndex,
   double targetWidth,
   double targetHeight,
 });
@@ -62,6 +64,7 @@ class PdfMergeNormalizer {
     required List<PdfDocument> sourceDocs,
     required PdfDocument outputDoc,
     required MergePageSizeMode mode,
+    PdfCancellationToken? cancellationToken,
   }) async {
     if (sourceDocs.isEmpty || sourceDocs.first.pages.isEmpty) {
       throw ArgumentError('normalizeInto requires at least one non-empty PDF');
@@ -82,28 +85,51 @@ class PdfMergeNormalizer {
     final srcAddresses = <int>[
       for (final doc in sourceDocs) await doc.useNativeDocumentHandle((h) => h),
     ];
-    final pageCounts = [for (final doc in sourceDocs) doc.pages.length];
+    // Keep each worker message small so cancellation is checked regularly and
+    // the main isolate remains responsive on large documents.
+    const batchSize = 12;
+    var normalized = 0;
+    var copied = 0;
+    var completed = 0;
+    var pageBatch = <List<int>>[];
 
-    // Run all PDFium mutation on the worker isolate: PDFium's registered Dart
-    // callbacks are bound to that isolate, so page creation/import must happen
-    // there rather than via useNativeDocumentHandle (which runs on the caller).
-    final counts = await PdfrxEntryFunctions.instance.compute(
-      _mergeOnWorker,
-      (
-        destAddress: destAddress,
-        srcAddresses: srcAddresses,
-        pageCounts: pageCounts,
-        targetWidth: target.width,
-        targetHeight: target.height,
-      ),
-    );
+    Future<void> processBatch() async {
+      if (pageBatch.isEmpty) return;
+      cancellationToken?.throwIfCancelled();
+      final result = await PdfrxEntryFunctions.instance
+          .compute(_mergeOnWorker, (
+            destAddress: destAddress,
+            srcAddresses: srcAddresses,
+            pageRefs: pageBatch,
+            destStartIndex: completed,
+            targetWidth: target.width,
+            targetHeight: target.height,
+          ));
+      normalized += result.$1;
+      copied += result.$2;
+      completed += pageBatch.length;
+      pageBatch = <List<int>>[];
+    }
+
+    for (var sourceIndex = 0; sourceIndex < sourceDocs.length; sourceIndex++) {
+      for (
+        var pageIndex = 0;
+        pageIndex < sourceDocs[sourceIndex].pages.length;
+        pageIndex++
+      ) {
+        cancellationToken?.throwIfCancelled();
+        pageBatch.add([sourceIndex, pageIndex]);
+        if (pageBatch.length >= batchSize) await processBatch();
+      }
+    }
+    await processBatch();
 
     // Sync pdfrx's page list with the pages created natively.
     await outputDoc.reloadPages();
 
     return MergeNormalizationResult(
-      normalizedPageCount: counts.$1,
-      copiedPageCount: counts.$2,
+      normalizedPageCount: normalized,
+      copiedPageCount: copied,
       targetWidth: target.width,
       targetHeight: target.height,
     );
@@ -120,28 +146,28 @@ const double _epsilon = 0.5;
   final targetWidth = message.targetWidth;
   final targetHeight = message.targetHeight;
 
-  var destIndex = 0;
   var normalized = 0;
   var copied = 0;
 
-  for (var s = 0; s < message.srcAddresses.length; s++) {
-    final src = pdfium.FPDF_DOCUMENT.fromAddress(message.srcAddresses[s]);
-    for (var p = 0; p < message.pageCounts[s]; p++) {
-      final didNormalize = _placePage(
-        pdf: pdf,
-        dest: dest,
-        src: src,
-        srcPageIndex: p,
-        destIndex: destIndex,
-        targetWidth: targetWidth,
-        targetHeight: targetHeight,
-      );
-      if (didNormalize) {
-        normalized++;
-      } else {
-        copied++;
-      }
-      destIndex++;
+  for (var i = 0; i < message.pageRefs.length; i++) {
+    final sourceIndex = message.pageRefs[i][0];
+    final pageIndex = message.pageRefs[i][1];
+    final src = pdfium.FPDF_DOCUMENT.fromAddress(
+      message.srcAddresses[sourceIndex],
+    );
+    final didNormalize = _placePage(
+      pdf: pdf,
+      dest: dest,
+      src: src,
+      srcPageIndex: pageIndex,
+      destIndex: message.destStartIndex + i,
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+    if (didNormalize) {
+      normalized++;
+    } else {
+      copied++;
     }
   }
 

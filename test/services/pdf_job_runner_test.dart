@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf_toolkit/core/errors/app_exception.dart';
 import 'package:pdf_toolkit/domain/entities/pdf_job.dart';
 import 'package:pdf_toolkit/services/pdf/pdf_job_runner.dart';
 
@@ -34,11 +35,14 @@ void main() {
     final events = <PdfJobProgress>[];
     final sub = controller.stream.listen(events.add);
 
-    await runner.run<void>(
-      progress: controller,
-      task: (reporter) async {
-        runner.cancel();
-      },
+    await expectLater(
+      () => runner.run<void>(
+        progress: controller,
+        task: (reporter) async {
+          runner.cancel();
+        },
+      ),
+      throwsA(isA<PdfOperationCancelledException>()),
     );
 
     await Future<void>.delayed(Duration.zero);
@@ -69,4 +73,30 @@ void main() {
     expect(events.last.status, PdfJobStatus.failure);
     expect(events.last.error, contains('boom'));
   });
+
+  test(
+    'reporter cancellation checkpoints stop the task with cancelled status',
+    () async {
+      final runner = PdfJobRunner();
+      final controller = StreamController<PdfJobProgress>();
+      final events = <PdfJobProgress>[];
+      final sub = controller.stream.listen(events.add);
+
+      await expectLater(
+        () => runner.run<void>(
+          progress: controller,
+          task: (reporter) async {
+            runner.cancel();
+            reporter.checkCancelled();
+          },
+        ),
+        throwsA(isA<PdfOperationCancelledException>()),
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      await sub.cancel();
+      await controller.close();
+      expect(events.last.status, PdfJobStatus.cancelled);
+    },
+  );
 }

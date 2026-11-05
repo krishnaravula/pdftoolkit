@@ -137,13 +137,13 @@ mixin PdfJobMixin<T extends ConsumerStatefulWidget> on ConsumerState<T> {
 }
 
 Future<String?> promptPassword(BuildContext context) async {
-  final controller = TextEditingController();
-  final result = await showDialog<String>(
+  var password = '';
+  return showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Enter PDF password'),
       content: TextField(
-        controller: controller,
+        onChanged: (value) => password = value,
         obscureText: true,
         decoration: const InputDecoration(labelText: 'Password'),
       ),
@@ -153,12 +153,10 @@ Future<String?> promptPassword(BuildContext context) async {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, controller.text),
+          onPressed: () => Navigator.pop(context, password),
           child: const Text('Continue'),
         ),
       ],
     ),
   );
-  controller.dispose();
-  return result;
 }

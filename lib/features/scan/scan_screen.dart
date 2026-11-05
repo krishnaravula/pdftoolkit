@@ -160,6 +160,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> with PdfJobMixin {
               suggestedName: 'scan.pdf',
 
               onProgress: (c, t, m) => reporter.update(c, t, m),
+              cancellationToken: reporter.cancellationToken,
             );
       },
 

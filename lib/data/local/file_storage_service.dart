@@ -19,6 +19,13 @@ class FileStorageService {
     return _tempDir!;
   }
 
+  Future<String> get openedPdfsDirectory async {
+    final cache = await getTemporaryDirectory();
+    final path = p.join(cache.path, Env.openedPdfsDirName);
+    await FileUtils.ensureDir(path);
+    return path;
+  }
+
   Future<String> createTempPath({String extension = '.jpg'}) async {
     final dir = await tempDirectory;
     return p.join(dir, FileUtils.tempFileName(extension: extension));
@@ -29,6 +36,15 @@ class FileStorageService {
     await MemoryUtils.cleanupDirectory(dir);
     // Enforce size-based policy (e.g., 500MB)
     await MemoryUtils.cleanupByTotalSize(dir);
+    final openedPdfs = await openedPdfsDirectory;
+    await MemoryUtils.cleanupDirectory(
+      openedPdfs,
+      maxAge: const Duration(days: 7),
+    );
+    await MemoryUtils.cleanupByTotalSize(
+      openedPdfs,
+      maxSizeBytes: 250 * 1024 * 1024,
+    );
   }
 
   Future<String> _subdir(String name) async {

@@ -1,9 +1,15 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pdf_toolkit/core/config/env.dart';
 import 'package:pdf_toolkit/core/di/providers.dart';
+import 'package:pdf_toolkit/core/routing/app_router.dart';
 import 'package:pdf_toolkit/domain/entities/pdf_feature.dart';
 import 'package:pdf_toolkit/domain/entities/recent_file.dart';
+import 'package:pdf_toolkit/features/viewer/pdf_viewer_screen.dart';
+import 'package:pdf_toolkit/services/platform/android_integration_service.dart';
 import 'package:pdf_toolkit/services/storage/recent_files_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,7 +30,8 @@ void main() {
             (ref) => Stream.value(const []),
           ),
           appPreferencesProvider.overrideWith(
-            (ref) async => AppPreferences(await SharedPreferences.getInstance()),
+            (ref) async =>
+                AppPreferences(await SharedPreferences.getInstance()),
           ),
         ],
         child: const PdfToolkitApp(),
@@ -35,6 +42,63 @@ void main() {
     expect(find.text(Env.appName), findsOneWidget);
     expect(find.text('Merge PDF'), findsOneWidget);
     expect(find.text('Scan to PDF'), findsOneWidget);
+  });
+
+  testWidgets('Android PDF intents open from cold start and while idle', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'onboarding_complete': true});
+    const channel = MethodChannel('pdf_toolkit/android');
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'consumeInitialPdf');
+      return {'path': '/cache/initial.pdf', 'readingPositionKey': 'initial'};
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final integration = AndroidIntegrationService(isAndroid: true);
+    addTearDown(integration.dispose);
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, _) => const Scaffold()),
+        GoRoute(
+          path: '/viewer',
+          builder: (_, state) {
+            final args = state.extra! as PdfViewerArgs;
+            return Scaffold(
+              body: Text('${args.filePath} ${args.readingPositionKey}'),
+            );
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          androidIntegrationServiceProvider.overrideWithValue(integration),
+          appRouterProvider.overrideWithValue(router),
+        ],
+        child: const PdfToolkitApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('/cache/initial.pdf initial'), findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        const MethodCall('openPdf', {
+          'path': '/cache/warm.pdf',
+          'readingPositionKey': 'warm',
+        }),
+      ),
+      null,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('/cache/warm.pdf warm'), findsOneWidget);
   });
 }
 
@@ -121,14 +185,6 @@ class _FakeRecentFilesService implements RecentFilesService {
   Stream<List<RecentFileItem>> watchRecentFiles() => const Stream.empty();
 
   @override
-  Future<void> cleanupOldProcessedFiles({
-    Duration maxAge = const Duration(days: 30),
-  }) async {}
-
-  @override
-  void markResultScreenActivePaths(List<String> paths) {}
-
-  @override
   Future<void> setExportedUri({
     required String id,
     required String exportedUri,
@@ -136,7 +192,4 @@ class _FakeRecentFilesService implements RecentFilesService {
 
   @override
   Future<void> setPinned({required String id, required bool pinned}) async {}
-
-  @override
-  void unmarkResultScreenActivePaths(List<String> paths) {}
 }

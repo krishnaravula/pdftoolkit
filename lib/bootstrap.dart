@@ -22,9 +22,6 @@ Future<BootstrapResult> bootstrap() async {
     await storage.cleanupStaleTempFiles();
     StartupDiagnostics.log('temp cleanup complete');
 
-    // Skip redundant monetization init here to avoid potential disposal races.
-    // Initialization will happen lazily via ProviderScope in PdfToolkitApp.
-
     StartupDiagnostics.log('bootstrap complete');
     return const BootstrapResult.success();
   } catch (e, st) {

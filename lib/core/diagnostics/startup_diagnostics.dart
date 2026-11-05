@@ -9,8 +9,9 @@ class StartupDiagnostics {
   static const _tag = 'PdfToolkitStartup';
 
   static void log(String phase, {Object? detail, StackTrace? stack}) {
-    final message = detail == null ? phase : '$phase: $detail';
-    developer.log(message, name: _tag, stackTrace: stack);
+    final safeDetail = detail == null ? null : detail.runtimeType;
+    final message = safeDetail == null ? phase : '$phase (${safeDetail})';
+    developer.log(message, name: _tag);
     if (kDebugMode) {
       debugPrint('[$_tag] $message');
     }

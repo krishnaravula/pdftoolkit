@@ -1,4 +1,20 @@
+import '../../core/errors/app_exception.dart';
+
 enum PdfJobStatus { idle, running, success, failure, cancelled }
+
+class PdfCancellationToken {
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() => _cancelled = true;
+
+  void reset() => _cancelled = false;
+
+  void throwIfCancelled() {
+    if (_cancelled) throw const PdfOperationCancelledException();
+  }
+}
 
 class PdfJobProgress {
   const PdfJobProgress({

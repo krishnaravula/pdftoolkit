@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-import '../config/app_config.dart';
+import '../../core/errors/app_exception.dart';
 import '../../data/local/database/app_database.dart';
 import '../../data/local/file_storage_service.dart';
 import '../../data/repositories/recent_files_repository.dart';
@@ -12,10 +11,7 @@ import '../../domain/entities/pdf_feature.dart';
 import '../../domain/entities/pdf_job.dart';
 import '../../domain/entities/recent_file.dart';
 import '../../domain/entities/scan_page.dart';
-import '../../services/monetization/ad_service.dart';
-import '../../services/monetization/admob_ad_service.dart';
-import '../../services/monetization/billing_service.dart';
-import '../../services/monetization/play_billing_service.dart';
+import '../../services/platform/android_integration_service.dart';
 import '../../services/pdf/pdf_job_runner.dart';
 import '../../services/pdf/pdf_processing_service.dart';
 import '../../services/pdf/pdf_service.dart';
@@ -25,6 +21,7 @@ import '../../services/share/share_service.dart';
 import '../../services/storage/file_save_service.dart';
 import '../../services/storage/recent_files_service.dart';
 import '../../services/storage/storage_repository.dart';
+import '../../services/storage/signature_storage_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -44,6 +41,18 @@ final storageRepositoryProvider = Provider<StorageRepository>((ref) {
   return StorageRepository();
 });
 
+final signatureStorageServiceProvider = Provider<SignatureStorageService>(
+  (ref) => SignatureStorageService(),
+);
+
+final androidIntegrationServiceProvider = Provider<AndroidIntegrationService>((
+  ref,
+) {
+  final service = AndroidIntegrationService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
 final pdfServiceProvider = Provider<PdfService>((ref) => PdfService());
 
 final pdfProcessingServiceProvider = Provider<PdfProcessingService>((ref) {
@@ -60,10 +69,7 @@ final shareServiceProvider = Provider<ShareService>((ref) => ShareService());
 final pageEnhancerProvider = Provider<PageEnhancer>((ref) => PageEnhancer());
 
 final scanServiceProvider = Provider<ScanService>((ref) {
-  if (Platform.isAndroid) {
-    return CunningDocumentScanService();
-  }
-  return StubScanService();
+  return CunningDocumentScanService();
 });
 
 final recentFilesRepositoryProvider = Provider<RecentFilesRepository>((ref) {
@@ -84,36 +90,6 @@ final recentFilesServiceProvider = Provider<RecentFilesService>((ref) {
 final recentFilesStreamProvider = StreamProvider<List<RecentFileItem>>((ref) {
   return ref.watch(recentFilesRepositoryProvider).watchRecentFiles();
 });
-
-final adServiceProvider = Provider<AdService>((ref) {
-  AdService service;
-  if (AppConfig.enableAds) {
-    service = AdMobAdService();
-  } else {
-    service = NoOpAdService();
-  }
-  ref.onDispose(service.dispose);
-  return service;
-});
-
-final billingServiceProvider = Provider<BillingService>((ref) {
-  BillingService service;
-  if (AppConfig.enableBilling) {
-    service = PlayBillingService();
-  } else {
-    service = NoOpBillingService();
-  }
-  ref.onDispose(service.dispose);
-  return service;
-});
-
-final adsEnabledProvider = FutureProvider<bool>(
-  (ref) => AppConfig.adsEnabled(),
-);
-
-final billingEnabledProvider = FutureProvider<bool>(
-  (ref) => AppConfig.billingEnabled(),
-);
 
 class PdfJobNotifier extends StateNotifier<PdfJobProgress> {
   PdfJobNotifier(this._runner)
@@ -140,6 +116,9 @@ class PdfJobNotifier extends StateNotifier<PdfJobProgress> {
       if (e.message == 'cancelled') {
         state = const PdfJobProgress(status: PdfJobStatus.cancelled);
       }
+      return null;
+    } on PdfOperationCancelledException {
+      state = const PdfJobProgress(status: PdfJobStatus.cancelled);
       return null;
     } finally {
       await sub.cancel();

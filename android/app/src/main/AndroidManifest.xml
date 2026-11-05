@@ -1,18 +1,20 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- google_mobile_ads merges AD_ID even when ENABLE_ADS=false; strip for default builds. -->
-    <uses-permission
-        android:name="com.google.android.gms.permission.AD_ID"
-        tools:node="remove" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
+        android:allowBackup="false"
         android:label="PDF Tools - Merge, Split &amp; Scan"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:pageSizeCompat="enabled">
+        <!-- Skia is the compatibility renderer for devices where Vulkan/
+             Impeller presents a black surface. PDF pages are rasterized by
+             PDFium, so this does not change document fidelity. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,9 +27,31 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/x-pdf" />
+                <data android:mimeType="application/acrobat" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/x-pdf" />
             </intent-filter>
         </activity>
 
@@ -44,33 +68,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <!-- Default build (ENABLE_ADS=false): strip eager AdMob startup. Dart still
-             calls MobileAds.initialize() when ads are enabled at compile time. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            tools:node="remove" />
-        <meta-data
-            android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
-            tools:node="remove" />
-        <meta-data
-            android:name="com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION"
-            tools:node="remove" />
-        <provider
-            android:name="com.google.android.gms.ads.MobileAdsInitProvider"
-            tools:node="remove" />
-        <service
-            android:name="com.google.android.gms.ads.AdService"
-            tools:node="remove" />
-        <activity
-            android:name="com.google.android.gms.ads.AdActivity"
-            tools:node="remove" />
-        <activity
-            android:name="com.google.android.gms.ads.OutOfContextTestingActivity"
-            tools:node="remove" />
-        <activity
-            android:name="com.google.android.gms.ads.NotificationHandlerActivity"
-            tools:node="remove" />
     </application>
 
     <queries>

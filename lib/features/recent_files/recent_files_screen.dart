@@ -11,7 +11,6 @@ import '../../core/widgets/screen_widgets.dart';
 import '../../data/local/app_preferences.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/recent_file.dart';
-import '../../features/shared/feature_scaffold.dart';
 import '../../features/viewer/pdf_viewer_screen.dart';
 
 enum RecentFilesListState { loading, empty, content, searchEmpty, error }
@@ -34,10 +33,7 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
   void initState() {
     super.initState();
     _loadSortPreference();
-    Future<void>(() async {
-      await ref.read(recentFilesServiceProvider).cleanupOldProcessedFiles();
-      await _refreshExistence();
-    });
+    _refreshExistence();
   }
 
   Future<void> _loadSortPreference() async {
@@ -53,7 +49,13 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
     for (final file in files) {
       cache[file.id] = await recentFiles.fileExists(file.path);
     }
-    if (mounted) setState(() => _existenceCache..clear()..addAll(cache));
+    if (mounted) {
+      setState(
+        () => _existenceCache
+          ..clear()
+          ..addAll(cache),
+      );
+    }
   }
 
   @override
@@ -106,16 +108,10 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
         await processing.validatePdfExists(file.path);
       } catch (e) {
         final message = userFriendlyError(e);
-        if (message.toLowerCase().contains('password') && mounted) {
-          final password = await promptPassword(context);
-          if (password == null || password.isEmpty) return;
-          openPdfViewer(context, file.path, password: password);
-          return;
-        }
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
         return;
       }
@@ -132,7 +128,9 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
     if (!await recentFiles.fileExists(file.path)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File is no longer available to share.')),
+          const SnackBar(
+            content: Text('File is no longer available to share.'),
+          ),
         );
       }
       return;
@@ -151,9 +149,7 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Renaming is not supported for this file location.',
-            ),
+            content: Text('Renaming is not supported for this file location.'),
           ),
         );
       }
@@ -195,9 +191,9 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
     final validationError = validateRenameFilename(newName);
     if (validationError != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(validationError)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(validationError)));
       }
       return;
     }
@@ -209,9 +205,9 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(userFriendlyError(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFriendlyError(e))));
       }
     }
   }
@@ -281,9 +277,9 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
       await _refreshExistence();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(userFriendlyError(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFriendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _actionInProgress = false);
@@ -305,9 +301,9 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
       await _refreshExistence();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(userFriendlyError(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFriendlyError(e))));
       }
     }
   }
@@ -351,8 +347,7 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const ScreenTitle('Recent files'),
-            if (_actionInProgress)
-              const LinearProgressIndicator(minHeight: 2),
+            if (_actionInProgress) const LinearProgressIndicator(minHeight: 2),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
@@ -401,7 +396,8 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
                         description: userFriendlyError(e),
                         icon: Icons.error_outline,
                         actionLabel: 'Retry',
-                        onAction: () => ref.invalidate(recentFilesStreamProvider),
+                        onAction: () =>
+                            ref.invalidate(recentFilesStreamProvider),
                       ),
                     ],
                   ),
@@ -425,10 +421,7 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
     );
   }
 
-  Widget _buildFileList(
-    List<RecentFileItem> files,
-    dynamic recentFiles,
-  ) {
+  Widget _buildFileList(List<RecentFileItem> files, dynamic recentFiles) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
       itemCount: files.length,

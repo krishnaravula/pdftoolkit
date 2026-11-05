@@ -1,13 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/config/env.dart';
 import '../../core/di/providers.dart';
 import '../../core/widgets/screen_widgets.dart';
@@ -45,10 +43,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       setState(() => _folderLabel = null);
       return;
     }
-    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    setState(
-      () => _folderLabel = segments.isEmpty ? 'Selected folder' : segments.last,
-    );
+    setState(() => _folderLabel = storage.displayNameForTreeUri(uri));
   }
 
   Future<void> _openSupportEmail() async {
@@ -74,15 +69,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _pickSaveFolder() async {
+  Future<bool> _pickSaveFolder() async {
     final storage = ref.read(storageRepositoryProvider);
     final treeUri = await storage.pickExportTreeUri();
-    if (treeUri == null) return;
+    if (treeUri == null) return false;
     await storage.persistTreeUriPermission(treeUri);
     await storage.setPreferredExportTreeUri(treeUri);
     final prefs = await ref.read(appPreferencesProvider.future);
     await prefs.setDefaultSaveLocation(DefaultSaveLocation.previouslySelected);
     await _loadFolderLabel();
+    ref.invalidate(appPreferencesProvider);
+    return true;
+  }
+
+  Future<void> _openDefaultPdfSettings() async {
+    try {
+      await ref
+          .read(androidIntegrationServiceProvider)
+          .openDefaultPdfSettings();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Android default-app settings could not be opened.'),
+        ),
+      );
+    }
   }
 
   Future<void> _clearTemporaryFiles() async {
@@ -146,9 +158,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (confirmed != true) return;
     await ref.read(recentFilesServiceProvider).clearRecentHistory();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recent history cleared.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Recent history cleared.')));
     }
   }
 
@@ -159,9 +171,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Version details'),
-        content: Text(
-          'Version ${info.version}\nBuild ${info.buildNumber}',
-        ),
+        content: Text('Version ${info.version}\nBuild ${info.buildNumber}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -175,7 +185,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final prefsAsync = ref.watch(appPreferencesProvider);
-    final billingEnabled = ref.watch(billingEnabledProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -194,10 +203,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SettingsSectionHeader('Files'),
               ListTile(
+                leading: const Icon(Icons.folder_outlined),
                 title: const Text('Default save location'),
                 subtitle: Text(_saveLocationSubtitle(prefs)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showSaveLocationPicker(prefs),
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_outlined),
+                title: const Text('Open PDFs by default'),
+                subtitle: const Text(
+                  'In Android Files, open a PDF, choose PDF Tools, and tap Always. Manage the choice here.',
+                ),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: _openDefaultPdfSettings,
               ),
               SwitchListTile(
                 title: const Text('Confirm before deleting files'),
@@ -245,26 +264,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: _clearRecentHistory,
               ),
               const SettingsSectionHeader('About'),
-              if (AppConfig.enableBilling)
-                billingEnabled.when(
-                  data: (_) => ListTile(
-                    title: const Text('Remove ads'),
-                    subtitle: Text(
-                      'Support development and use ${Env.appName} ad-free',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/premium'),
-                  ),
-                  loading: () => const ListTile(
-                    title: Text('Remove ads'),
-                    subtitle: Text('Loading…'),
-                  ),
-                  error: (_, _) => const ListTile(
-                    title: Text('Remove ads'),
-                    subtitle: Text('Billing unavailable on this device'),
-                    enabled: false,
-                  ),
-                ),
               ListTile(
                 title: const Text('Privacy policy'),
                 trailing: const Icon(Icons.chevron_right),
@@ -294,30 +293,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 onTap: _packageInfo == null ? null : _showVersionDetails,
               ),
-              if (kDebugMode) ...[
-                const Divider(),
-                const SettingsSectionHeader('Developer'),
-                SwitchListTile(
-                  title: const Text('Enable ads (runtime)'),
-                  value: AppConfig.enableAds,
-                  onChanged: AppConfig.enableAds
-                      ? (value) async {
-                          await AppConfig.setAdsOverride(value);
-                          ref.invalidate(adsEnabledProvider);
-                        }
-                      : null,
-                ),
-                SwitchListTile(
-                  title: const Text('Enable billing (runtime)'),
-                  value: AppConfig.enableBilling,
-                  onChanged: AppConfig.enableBilling
-                      ? (value) async {
-                          await AppConfig.setBillingOverride(value);
-                          ref.invalidate(billingEnabledProvider);
-                        }
-                      : null,
-                ),
-              ],
               const SizedBox(height: 16),
             ],
           ),
@@ -328,7 +303,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   String _saveLocationSubtitle(AppPreferences prefs) {
     return switch (prefs.defaultSaveLocation) {
-      DefaultSaveLocation.askEveryTime => DefaultSaveLocation.askEveryTime.label,
+      DefaultSaveLocation.askEveryTime =>
+        DefaultSaveLocation.askEveryTime.label,
       DefaultSaveLocation.documentsPdfTools =>
         DefaultSaveLocation.documentsPdfTools.label,
       DefaultSaveLocation.previouslySelected =>
@@ -364,10 +340,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
     if (selected == null) return;
-    await prefs.setDefaultSaveLocation(selected);
     if (selected == DefaultSaveLocation.previouslySelected) {
       await _pickSaveFolder();
+      return;
     }
+    await prefs.setDefaultSaveLocation(selected);
     ref.invalidate(appPreferencesProvider);
   }
 

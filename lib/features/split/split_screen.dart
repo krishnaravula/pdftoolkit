@@ -123,6 +123,7 @@ class _SplitScreenState extends ConsumerState<SplitScreen> with PdfJobMixin {
                             mode: _mode,
                             pagesPerFile: _pagesPerFile,
                             onProgress: (c, t, m) => reporter.update(c, t, m),
+                            cancellationToken: reporter.cancellationToken,
                           ),
                       onDone: () => setState(() {
                         _inputPath = null;

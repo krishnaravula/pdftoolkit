@@ -2,39 +2,40 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/errors/app_exception.dart';
 import '../../domain/entities/pdf_job.dart';
 
 class PdfJobRunner {
-  bool _cancelled = false;
+  final PdfCancellationToken _cancellationToken = PdfCancellationToken();
 
-  void cancel() => _cancelled = true;
+  void cancel() => _cancellationToken.cancel();
 
-  void reset() => _cancelled = false;
+  void reset() => _cancellationToken.reset();
 
   Future<T> run<T>({
     required StreamController<PdfJobProgress> progress,
     required Future<T> Function(PdfProgressReporter reporter) task,
   }) async {
-    _cancelled = false;
+    _cancellationToken.reset();
     progress.add(const PdfJobProgress(status: PdfJobStatus.running));
 
     final reporter = PdfProgressReporter(
       progress: progress,
-      isCancelled: () => _cancelled,
+      cancellationToken: _cancellationToken,
     );
 
     try {
       final result = await task(reporter);
-      if (_cancelled) {
-        progress.add(const PdfJobProgress(status: PdfJobStatus.cancelled));
-      } else {
-        progress.add(
-          PdfJobProgress(status: PdfJobStatus.success, message: 'Complete'),
-        );
-      }
+      _cancellationToken.throwIfCancelled();
+      progress.add(
+        PdfJobProgress(status: PdfJobStatus.success, message: 'Complete'),
+      );
       return result;
-    } catch (e, st) {
-      debugPrint('PdfJobRunner error: $e\n$st');
+    } on PdfOperationCancelledException {
+      progress.add(const PdfJobProgress(status: PdfJobStatus.cancelled));
+      rethrow;
+    } catch (e) {
+      debugPrint('PdfJobRunner failed.');
       progress.add(
         PdfJobProgress(status: PdfJobStatus.failure, error: e.toString()),
       );
@@ -44,13 +45,16 @@ class PdfJobRunner {
 }
 
 class PdfProgressReporter {
-  PdfProgressReporter({required this.progress, required this.isCancelled});
+  PdfProgressReporter({
+    required this.progress,
+    required this.cancellationToken,
+  });
 
   final StreamController<PdfJobProgress> progress;
-  final bool Function() isCancelled;
+  final PdfCancellationToken cancellationToken;
 
   void update(int current, int total, String message) {
-    if (isCancelled()) return;
+    if (cancellationToken.isCancelled) return;
     progress.add(
       PdfJobProgress(
         status: PdfJobStatus.running,
@@ -72,9 +76,7 @@ class PdfProgressReporter {
   }
 
   void checkCancelled() {
-    if (isCancelled()) {
-      throw StateError('cancelled');
-    }
+    cancellationToken.throwIfCancelled();
   }
 }
 

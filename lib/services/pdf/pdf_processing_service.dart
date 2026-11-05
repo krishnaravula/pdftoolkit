@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/error_messages.dart';
 import '../../domain/entities/pdf_job.dart';
+import '../../domain/entities/pdf_page_operation.dart';
+import '../../domain/entities/pdf_stamp_placement.dart';
 import '../storage/file_save_service.dart';
 import 'pdf_service.dart';
 
@@ -41,7 +43,9 @@ class PdfProcessingService {
     List<String> inputPaths, {
     required String suggestedName,
     PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
   }) async {
+    cancellationToken?.throwIfCancelled();
     await validatePdfsExist(inputPaths);
     final outputPath = await _fileSave.createTempOutputPath(suggestedName);
 
@@ -50,10 +54,12 @@ class PdfProcessingService {
         inputPaths,
         outputPath: outputPath,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.mergePdfs error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.mergePdfs failed.');
       await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -64,6 +70,7 @@ class PdfProcessingService {
     List<int>? selectedPages,
     int pagesPerFile = 1,
     PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
   }) async {
     await validatePdfExists(inputPath);
 
@@ -80,6 +87,7 @@ class PdfProcessingService {
         selectedPages: selectedPages,
         pagesPerFile: pagesPerFile,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
         namePrefix: stem,
       );
 
@@ -90,8 +98,9 @@ class PdfProcessingService {
             suggestedName: _splitSuggestedName(stem, mode, i, outputs.length),
           ),
       ];
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.splitPdf error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.splitPdf failed.');
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -101,6 +110,7 @@ class PdfProcessingService {
     required String suggestedName,
     required CompressionQuality quality,
     PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
   }) async {
     await validatePdfExists(inputPath);
     final outputPath = await _fileSave.createTempOutputPath(suggestedName);
@@ -111,10 +121,12 @@ class PdfProcessingService {
         outputPath: outputPath,
         quality: quality,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.compressPdf error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.compressPdf failed.');
       await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -124,6 +136,7 @@ class PdfProcessingService {
     required String suggestedName,
     int jpegQuality = 85,
     PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
   }) async {
     if (imagePaths.isEmpty) {
       throw const PdfProcessingException('Select at least one image.');
@@ -140,10 +153,12 @@ class PdfProcessingService {
         outputPath: outputPath,
         jpegQuality: jpegQuality,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.imagesToPdf error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.imagesToPdf failed.');
       await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -153,24 +168,46 @@ class PdfProcessingService {
     required List<int> pageOrderOneBased,
     required String suggestedName,
     PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
   }) async {
-    await validatePdfExists(inputPath);
-    if (pageOrderOneBased.isEmpty) {
+    return organizePages(
+      operations: [
+        for (final pageNumber in pageOrderOneBased)
+          PdfPageOperation(sourcePath: inputPath, pageNumber: pageNumber),
+      ],
+      suggestedName: suggestedName,
+      onProgress: onProgress,
+      cancellationToken: cancellationToken,
+    );
+  }
+
+  Future<String> organizePages({
+    required List<PdfPageOperation> operations,
+    required String suggestedName,
+    PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
+  }) async {
+    if (operations.isEmpty) {
       throw const PdfProcessingException('No pages to save.');
+    }
+    for (final sourcePath
+        in operations.map((operation) => operation.sourcePath).toSet()) {
+      await validatePdfExists(sourcePath);
     }
 
     final outputPath = await _fileSave.createTempOutputPath(suggestedName);
 
     try {
-      return await _pdfService.reorderOrDeletePages(
-        inputPath: inputPath,
-        pageOrderOneBased: pageOrderOneBased,
+      return await _pdfService.organizePages(
+        operations: operations,
         outputPath: outputPath,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.reorderOrDeletePages error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.organizePages failed.');
       await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -179,6 +216,7 @@ class PdfProcessingService {
     required String inputPath,
     required String password,
     required String suggestedName,
+    PdfCancellationToken? cancellationToken,
   }) async {
     _fileSave.validateSourceFile(inputPath);
     final outputPath = await _fileSave.createTempOutputPath(suggestedName);
@@ -188,13 +226,15 @@ class PdfProcessingService {
         inputPath: inputPath,
         password: password,
         outputPath: outputPath,
+        cancellationToken: cancellationToken,
       );
     } on InvalidPasswordException {
       await _fileSave.deleteTempFile(outputPath);
       rethrow;
-    } catch (e, st) {
-      debugPrint('PdfProcessingService.removePassword error: $e\n$st');
+    } catch (e) {
+      debugPrint('PdfProcessingService.removePassword failed.');
       await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
       throw PdfProcessingException(userFriendlyError(e));
     }
   }
@@ -202,6 +242,59 @@ class PdfProcessingService {
   Future<int> pageCount(String inputPath) async {
     await validatePdfExists(inputPath);
     return _pdfService.pageCount(inputPath);
+  }
+
+  Future<int> digitalSignatureCount(String inputPath) async {
+    await validatePdfExists(inputPath);
+    return _pdfService.digitalSignatureCount(inputPath);
+  }
+
+  Future<String> applyVisualStamps({
+    required String inputPath,
+    required List<PdfStampPlacement> placements,
+    required String suggestedName,
+    bool acknowledgeExistingSignatures = false,
+    PdfProgressCallback? onProgress,
+    PdfCancellationToken? cancellationToken,
+  }) async {
+    await validatePdfExists(inputPath);
+    if (placements.isEmpty) {
+      throw const PdfProcessingException('Add a signature or date first.');
+    }
+    for (final placement in placements) {
+      if (placement.pageNumber < 1 ||
+          placement.left < 0 ||
+          placement.top < 0 ||
+          placement.width <= 0 ||
+          placement.height <= 0 ||
+          placement.left + placement.width > 1 ||
+          placement.top + placement.height > 1 ||
+          placement.pngBytes.isEmpty) {
+        throw const PdfProcessingException('A signature placement is invalid.');
+      }
+    }
+
+    cancellationToken?.throwIfCancelled();
+    final signatureCount = await _pdfService.digitalSignatureCount(inputPath);
+    if (signatureCount > 0 && !acknowledgeExistingSignatures) {
+      throw ExistingPdfSignaturesException(signatureCount);
+    }
+
+    final outputPath = await _fileSave.createTempOutputPath(suggestedName);
+    try {
+      return await _pdfService.applyVisualStamps(
+        inputPath: inputPath,
+        outputPath: outputPath,
+        placements: placements,
+        onProgress: onProgress,
+        cancellationToken: cancellationToken,
+      );
+    } catch (e) {
+      debugPrint('PdfProcessingService.applyVisualStamps failed.');
+      await _fileSave.deleteTempFile(outputPath);
+      if (e is PdfOperationCancelledException) rethrow;
+      throw PdfProcessingException(userFriendlyError(e));
+    }
   }
 
   String _splitSuggestedName(

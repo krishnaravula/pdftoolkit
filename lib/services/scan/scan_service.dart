@@ -29,12 +29,3 @@ class CunningDocumentScanService implements ScanService {
     return pictures;
   }
 }
-
-class StubScanService implements ScanService {
-  @override
-  Future<List<String>> capturePages({int? maxPages}) async {
-    throw const ScanException(
-      'Document scanning is not available on this platform.',
-    );
-  }
-}

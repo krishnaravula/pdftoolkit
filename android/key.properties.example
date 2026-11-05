@@ -1,5 +1,5 @@
 # Replace with your upload keystore values before release builds.
-storePassword=YOUR_STORE_PASSWORD
-keyPassword=YOUR_KEY_PASSWORD
+storePassword=rskrsk
+keyPassword=rskrsk
 keyAlias=upload
 storeFile=../keystore/upload-keystore.jks

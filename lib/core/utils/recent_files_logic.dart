@@ -2,10 +2,7 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/recent_file.dart';
 
 /// Whether a recent-file entry points to an accessible document.
-enum RecentFileAccessibility {
-  accessible,
-  missing,
-}
+enum RecentFileAccessibility { accessible, missing }
 
 /// Filters recent files by filename (case-insensitive).
 List<RecentFileItem> filterRecentFilesByQuery(
@@ -33,9 +30,8 @@ List<RecentFileItem> sortRecentFiles(
       sorted.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     case RecentFilesSort.name:
       sorted.sort(
-        (a, b) => a.displayName.toLowerCase().compareTo(
-          b.displayName.toLowerCase(),
-        ),
+        (a, b) =>
+            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
       );
     case RecentFilesSort.size:
       sorted.sort((a, b) {
@@ -48,7 +44,9 @@ List<RecentFileItem> sortRecentFiles(
 
 /// Maps file existence to a UI accessibility state.
 RecentFileAccessibility mapFileAccessibility({required bool exists}) {
-  return exists ? RecentFileAccessibility.accessible : RecentFileAccessibility.missing;
+  return exists
+      ? RecentFileAccessibility.accessible
+      : RecentFileAccessibility.missing;
 }
 
 /// Ensures a filename ends with `.pdf` (case-insensitive check).

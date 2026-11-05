@@ -9,7 +9,12 @@ enum PdfFeatureType {
     'Unlock a password-protected PDF',
   ),
   scan('Scan to PDF', 'scan', 'Camera scan with crop and filters'),
-  pageEditor('Reorder Pages', 'page_editor', 'Reorder or delete PDF pages');
+  pageEditor(
+    'Organize Pages',
+    'page_editor',
+    'Reorder, rotate, duplicate, insert, or remove pages',
+  ),
+  eSign('Sign PDF', 'esign', 'Add a visual signature and date to a PDF');
 
   const PdfFeatureType(this.label, this.routeName, this.description);
   final String label;
@@ -24,6 +29,7 @@ enum PdfFeatureType {
     PdfFeatureType.imageToPdf => 'Converted PDF',
     PdfFeatureType.removePassword => 'Unlocked PDF',
     PdfFeatureType.scan => 'Scanned PDF',
-    PdfFeatureType.pageEditor => 'Reordered PDF',
+    PdfFeatureType.pageEditor => 'Organized PDF',
+    PdfFeatureType.eSign => 'Signed PDF',
   };
 }

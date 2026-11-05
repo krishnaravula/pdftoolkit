@@ -64,12 +64,7 @@ class RecentFileTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Thumbnail(
-                file: file,
-                exists: exists,
-                width: 44,
-                height: 56,
-              ),
+              _Thumbnail(file: file, exists: exists, width: 44, height: 56),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -143,17 +138,18 @@ class RecentFileTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (showMenu) _OverflowMenu(
-                file: file,
-                recentFiles: recentFiles,
-                exists: exists,
-                onOpen: onTap,
-                onShare: onShare,
-                onRename: onRename,
-                onFileDetails: onFileDetails,
-                onRemoveFromRecent: onRemoveFromRecent,
-                onDeleteFile: onDeleteFile,
-              ),
+              if (showMenu)
+                _OverflowMenu(
+                  file: file,
+                  recentFiles: recentFiles,
+                  exists: exists,
+                  onOpen: onTap,
+                  onShare: onShare,
+                  onRename: onRename,
+                  onFileDetails: onFileDetails,
+                  onRemoveFromRecent: onRemoveFromRecent,
+                  onDeleteFile: onDeleteFile,
+                ),
             ],
           ),
         ),
@@ -341,7 +337,10 @@ void showRecentFileDetailsDialog(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DetailRow(label: 'Filename', value: file.displayName),
-            _DetailRow(label: 'Type', value: file.sourceFeature.recentFilesLabel),
+            _DetailRow(
+              label: 'Type',
+              value: file.sourceFeature.recentFilesLabel,
+            ),
             _DetailRow(
               label: 'Size',
               value: recentFiles.formatFileSize(file.sizeBytes),
@@ -351,10 +350,7 @@ void showRecentFileDetailsDialog(
               label: 'Location',
               value: recentFiles.formatFullLocation(file),
             ),
-            _DetailRow(
-              label: 'Accessible',
-              value: exists ? 'Yes' : 'No',
-            ),
+            _DetailRow(label: 'Accessible', value: exists ? 'Yes' : 'No'),
           ],
         ),
       ),

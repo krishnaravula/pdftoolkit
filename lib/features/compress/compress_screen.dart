@@ -149,6 +149,7 @@ class _CompressScreenState extends ConsumerState<CompressScreen>
                             quality: _quality,
 
                             onProgress: (c, t, m) => reporter.update(c, t, m),
+                            cancellationToken: reporter.cancellationToken,
                           ),
                     ),
             ),

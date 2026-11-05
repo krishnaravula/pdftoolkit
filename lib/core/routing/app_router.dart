@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/di/providers.dart';
 import '../../domain/entities/pdf_feature.dart';
 import '../../features/compress/compress_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/image_to_pdf/image_to_pdf_screen.dart';
 import '../../features/merge/merge_screen.dart';
 import '../../features/page_editor/page_editor_screen.dart';
-import '../../features/premium/premium_screen.dart';
 import '../../features/recent_files/recent_files_screen.dart';
 import '../../features/remove_password/remove_password_screen.dart';
 import '../../features/scan/scan_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/esign/esign_screen.dart';
 import '../../features/privacy/privacy_policy_screen.dart';
 import '../../features/viewer/pdf_viewer_screen.dart';
 import '../../features/split/split_screen.dart';
@@ -89,12 +88,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/page-editor',
-        builder: (context, state) => const PageEditorScreen(),
+        builder: (context, state) {
+          final extra = state.extra;
+          return PageEditorScreen(
+            initialFilePath: extra is String ? extra : null,
+          );
+        },
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/premium',
-        builder: (context, state) => const PremiumScreen(),
+        path: '/esign',
+        builder: (context, state) {
+          final extra = state.extra;
+          return EsignScreen(initialFilePath: extra is String ? extra : null);
+        },
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
@@ -105,6 +112,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return PdfViewerScreen(
               filePath: extra.filePath,
               password: extra.password,
+              readingPositionKey: extra.readingPositionKey,
             );
           }
           final path = extra as String? ?? '';
@@ -120,51 +128,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class MainShell extends ConsumerWidget {
+class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final adService = ref.watch(adServiceProvider);
-
+  Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(child: navigationShell),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FutureBuilder<bool>(
-              future: ref.read(adsEnabledProvider.future),
-              builder: (context, snapshot) {
-                if (snapshot.data != true) return const SizedBox.shrink();
-                return adService.buildBannerAd();
-              },
-            ),
-            NavigationBar(
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: navigationShell.goBranch,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.history),
-                  label: 'Recent',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
-            ),
-          ],
-        ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: navigationShell.currentIndex,
+        onDestinationSelected: navigationShell.goBranch,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(icon: Icon(Icons.history), label: 'Recent'),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
       ),
     );
   }

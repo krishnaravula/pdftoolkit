@@ -139,6 +139,7 @@ class _ImageToPdfScreenState extends ConsumerState<ImageToPdfScreen>
                             jpegQuality: _jpegQuality,
 
                             onProgress: (c, t, m) => reporter.update(c, t, m),
+                            cancellationToken: reporter.cancellationToken,
                           ),
                     ),
             ),

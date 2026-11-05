@@ -110,6 +110,7 @@ class _MergeScreenState extends ConsumerState<MergeScreen> with PdfJobMixin {
                             _selectedPaths,
                             suggestedName: 'merged.pdf',
                             onProgress: (c, t, m) => reporter.update(c, t, m),
+                            cancellationToken: reporter.cancellationToken,
                           ),
                       onDone: () => setState(() => _selectedPaths = []),
                     ),

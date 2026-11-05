@@ -44,4 +44,20 @@ void main() {
     expect(result, isFalse);
     await tempDir.delete(recursive: true);
   });
+
+  test('isValidPdf uses the same header window as Android imports', () async {
+    final service = FileSaveService();
+    final dir = await Directory.systemTemp.createTemp('pdf_header_test');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/input.pdf');
+
+    await file.writeAsString('${' ' * 1019}%PDF-1.7');
+    expect(await service.isValidPdf(file.path), isTrue);
+
+    await file.writeAsString('${' ' * 1020}%PDF-1.7');
+    expect(await service.isValidPdf(file.path), isFalse);
+
+    await file.writeAsString('%PDFX');
+    expect(await service.isValidPdf(file.path), isFalse);
+  });
 }

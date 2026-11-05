@@ -100,8 +100,8 @@ class RecentFilesRepository {
             pinned: drift.Value(row.pinned),
           ),
         );
-      } catch (e, st) {
-        debugPrint('RecentFilesRepository thumbnail error: $e\n$st');
+      } catch (_) {
+        debugPrint('RecentFilesRepository thumbnail generation failed.');
       }
     });
   }
