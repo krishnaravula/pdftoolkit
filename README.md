@@ -143,6 +143,13 @@ app can also:
 - export to a remembered Storage Access Framework folder; or
 - ask for a destination each time.
 
+Processing results wait in private cache until the save screen copies them.
+Leftover cache files (for example, from leaving the save screen early) are
+removed on launch once they are older than 24 hours or exceed 500 MB, and
+**Settings › Clear temporary files** removes them immediately along with
+thumbnails and opened-PDF copies. Saved PDFs and recent history are not
+affected.
+
 Files are never silently written to arbitrary shared-storage paths.
 
 ## Build an APK
