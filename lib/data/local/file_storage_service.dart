@@ -44,7 +44,9 @@ class FileStorageService {
     await MemoryUtils.cleanupDirectory(dir);
     // Enforce size-based policy (e.g., 500MB)
     await MemoryUtils.cleanupByTotalSize(dir);
-    await MemoryUtils.cleanupDirectory(await processingOutputsDirectory);
+    final processingOutputs = await processingOutputsDirectory;
+    await MemoryUtils.cleanupDirectory(processingOutputs);
+    await MemoryUtils.cleanupByTotalSize(processingOutputs);
     final openedPdfs = await openedPdfsDirectory;
     await MemoryUtils.cleanupDirectory(
       openedPdfs,
