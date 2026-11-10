@@ -90,6 +90,11 @@ turns implementation errors into user-facing exceptions.
 
 `PdfService` performs document operations. Supporting files handle page
 geometry, merge normalization, target page sizes, and cancellable job progress.
+`PdfJobNotifier` mirrors `PdfJobRunner` progress into Riverpod state through a
+synchronous stream so the final success, failure, or cancelled state is always
+applied. Only `StateError('cancelled')` and `PdfOperationCancelledException`
+map to cancellation; other errors propagate to the screen and are shown with
+`userFriendlyError`.
 `pdfrx` supplies rendering/document access and `pdfium_dart` supplies native
 PDFium operations needed for lossless manipulation.
 
@@ -111,8 +116,9 @@ and domain page numbers are one-based.
 - `AppDatabase` is a Drift database containing recent-file records.
 - `RecentFilesRepository` coordinates database rows, durable files, metadata,
   and thumbnails.
-- `FileStorageService` owns private application directories and stale temporary
-  file cleanup.
+- `FileStorageService` owns private application directories, including the
+  cache directory where pending processing outputs wait to be saved, and stale
+  temporary file cleanup.
 
 The generated Drift implementation is
 `lib/data/local/database/app_database.g.dart`.
@@ -124,6 +130,9 @@ The generated Drift implementation is
 unique filenames, and invokes Android export APIs. The save screen removes each
 temporary output after `RecentFilesService` records the durable copy. If one
 file fails, retry resumes at that file and keeps the earlier results available.
+Pending outputs live in `FileStorageService.processingOutputsDirectory`
+(`<cache>/temp`); startup cleanup applies age and size limits there, and
+`RecentFilesService.clearTemporaryFiles` empties it.
 
 The normal output flow is:
 

@@ -101,6 +101,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final recentFiles = ref.read(recentFilesServiceProvider);
     final bytes = await recentFiles.calculateTemporaryFilesBytes();
     final sizeLabel = recentFiles.formatFileSize(bytes);
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

@@ -107,15 +107,14 @@ class PdfJobNotifier extends StateNotifier<PdfJobProgress> {
   Future<T?> execute<T>(
     Future<T> Function(PdfProgressReporter reporter) task,
   ) async {
-    final controller = StreamController<PdfJobProgress>();
+    final controller = StreamController<PdfJobProgress>(sync: true);
     final sub = controller.stream.listen((progress) => state = progress);
 
     try {
       return await _runner.run(progress: controller, task: task);
     } on StateError catch (e) {
-      if (e.message == 'cancelled') {
-        state = const PdfJobProgress(status: PdfJobStatus.cancelled);
-      }
+      if (e.message != 'cancelled') rethrow;
+      state = const PdfJobProgress(status: PdfJobStatus.cancelled);
       return null;
     } on PdfOperationCancelledException {
       state = const PdfJobProgress(status: PdfJobStatus.cancelled);

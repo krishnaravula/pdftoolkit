@@ -88,7 +88,7 @@ class _SplitScreenState extends ConsumerState<SplitScreen> with PdfJobMixin {
             if (_mode == SplitMode.everyNPages) ...[
               const SizedBox(height: 12),
               TextFormField(
-                initialValue: '1',
+                initialValue: '$_pagesPerFile',
                 decoration: const InputDecoration(labelText: 'Pages per file'),
                 keyboardType: TextInputType.number,
                 enabled: !isRunning,

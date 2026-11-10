@@ -393,15 +393,23 @@ class _SaveResultScreenState extends ConsumerState<SaveResultScreen> {
       );
       return;
     }
-    final recent = await ref
-        .read(recentFilesServiceProvider)
-        .findByPath(oldPath);
-    if (recent != null) {
-      await ref
+    try {
+      final recent = await ref
           .read(recentFilesServiceProvider)
-          .renameRecentFile(id: recent.id, newName: newName);
-    } else {
-      await file.rename(newPath);
+          .findByPath(oldPath);
+      if (recent != null) {
+        await ref
+            .read(recentFilesServiceProvider)
+            .renameRecentFile(id: recent.id, newName: newName);
+      } else {
+        await file.rename(newPath);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(userFriendlyError(e))));
+      return;
     }
     if (!mounted) return;
     setState(() {
