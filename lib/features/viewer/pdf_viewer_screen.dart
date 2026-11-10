@@ -390,6 +390,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
   Future<void> _delete() async {
     final prefs = await ref.read(appPreferencesProvider.future);
+    if (!mounted) return;
     final confirmed = !prefs.confirmBeforeDeletingFiles
         ? true
         : await showDialog<bool>(

@@ -98,6 +98,7 @@ class RecentFilesService {
     total += await _directorySize(thumbDir);
 
     total += await _directorySize(await _storage.openedPdfsDirectory);
+    total += await _directorySize(await _storage.processingOutputsDirectory);
 
     return total;
   }
@@ -107,6 +108,7 @@ class RecentFilesService {
     cleared += await _clearDirectory(await _storage.tempDirectory);
     cleared += await _clearDirectory(await _storage.thumbnailsDirectory);
     cleared += await _clearDirectory(await _storage.openedPdfsDirectory);
+    cleared += await _clearDirectory(await _storage.processingOutputsDirectory);
     return cleared;
   }
 

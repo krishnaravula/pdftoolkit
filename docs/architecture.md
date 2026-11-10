@@ -111,8 +111,9 @@ and domain page numbers are one-based.
 - `AppDatabase` is a Drift database containing recent-file records.
 - `RecentFilesRepository` coordinates database rows, durable files, metadata,
   and thumbnails.
-- `FileStorageService` owns private application directories and stale temporary
-  file cleanup.
+- `FileStorageService` owns private application directories, including the
+  cache directory where pending processing outputs wait to be saved, and stale
+  temporary file cleanup.
 
 The generated Drift implementation is
 `lib/data/local/database/app_database.g.dart`.

@@ -240,6 +240,7 @@ class _RecentFilesScreenState extends ConsumerState<RecentFilesScreen> {
 
   Future<void> _confirmDeleteFile(RecentFileItem file) async {
     final prefs = await ref.read(appPreferencesProvider.future);
+    if (!mounted) return;
     if (prefs.confirmBeforeDeletingFiles) {
       final confirmed = await showDialog<bool>(
         context: context,

@@ -19,6 +19,14 @@ class FileStorageService {
     return _tempDir!;
   }
 
+  /// Cache directory where processing outputs wait to be saved.
+  Future<String> get processingOutputsDirectory async {
+    final cache = await getTemporaryDirectory();
+    final path = p.join(cache.path, Env.tempDirName);
+    await FileUtils.ensureDir(path);
+    return path;
+  }
+
   Future<String> get openedPdfsDirectory async {
     final cache = await getTemporaryDirectory();
     final path = p.join(cache.path, Env.openedPdfsDirName);
@@ -36,6 +44,7 @@ class FileStorageService {
     await MemoryUtils.cleanupDirectory(dir);
     // Enforce size-based policy (e.g., 500MB)
     await MemoryUtils.cleanupByTotalSize(dir);
+    await MemoryUtils.cleanupDirectory(await processingOutputsDirectory);
     final openedPdfs = await openedPdfsDirectory;
     await MemoryUtils.cleanupDirectory(
       openedPdfs,
