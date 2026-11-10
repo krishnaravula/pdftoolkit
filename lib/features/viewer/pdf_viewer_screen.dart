@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,57 +14,6 @@ import '../../core/utils/file_utils.dart';
 import '../../core/widgets/app_widgets.dart';
 import '../../data/local/app_preferences.dart';
 import '../shared/feature_scaffold.dart';
-
-// #region agent log
-void agentDebugLog(
-  String hypothesisId,
-  String location,
-  String message,
-  Map<String, Object?> data,
-) {
-  final payload = jsonEncode({
-    'sessionId': '690402',
-    'runId': 'pre-fix',
-    'hypothesisId': hypothesisId,
-    'location': location,
-    'message': message,
-    'data': data,
-    'timestamp': DateTime.now().millisecondsSinceEpoch,
-  });
-  unawaited(() async {
-    try {
-      final file = File(
-        r'c:\Users\saikr\Documents\pdftoolkit\.cursor\debug-690402.log',
-      );
-      await file.writeAsString(
-        '$payload\n',
-        mode: FileMode.append,
-        flush: true,
-      );
-    } catch (_) {}
-    for (final host in const ['127.0.0.1', '10.0.2.2']) {
-      final client = HttpClient();
-      try {
-        client.connectionTimeout = const Duration(milliseconds: 500);
-        final req = await client
-            .postUrl(
-              Uri.parse(
-                'http://$host:7602/ingest/ff7a3943-db84-447a-852c-c30bea33ab14',
-              ),
-            )
-            .timeout(const Duration(milliseconds: 500));
-        req.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-        req.headers.set('X-Debug-Session-Id', '690402');
-        req.add(utf8.encode(payload));
-        await req.close().timeout(const Duration(milliseconds: 500));
-      } catch (_) {
-      } finally {
-        client.close(force: true);
-      }
-    }
-  }());
-}
-// #endregion
 
 class PdfViewerScreen extends ConsumerStatefulWidget {
   const PdfViewerScreen({
@@ -106,8 +54,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   String? _nextPassword;
   bool _passwordAttempted = false;
   bool _requestingPassword = false;
-  String? _loggedBuildPhase;
-  bool _loggedPassword = false;
 
   String get _documentKey =>
       widget.readingPositionKey ?? File(widget.filePath).absolute.path;
@@ -121,25 +67,11 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   void initState() {
     super.initState();
     _nextPassword = widget.password;
-    _controller.addListener(_onControllerUpdated);
     _initPdf();
-  }
-
-  void _onControllerUpdated() {
-    if (!mounted) return;
-    if (_controller.isReady && !_viewerReady) {
-      if (_controller.document != null) {
-        _onViewerReady(_controller.document!, _controller);
-      }
-    }
-    if (_controller.isReady && _controller.pageNumber != _currentPageNumber) {
-      _onPageChanged(_controller.pageNumber);
-    }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onControllerUpdated);
     _searchDebounce?.cancel();
     _positionDebounce?.cancel();
     unawaited(_saveReadingPosition());
@@ -156,23 +88,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   }
 
   Future<void> _initPdf() async {
-    // #region agent log
-    agentDebugLog('A', 'pdf_viewer_screen.dart:_initPdf', 'init start', {
-      'name': p.basename(widget.filePath),
-      'pathLen': widget.filePath.length,
-      'cachedExternal': _isTemporaryExternalPdf,
-    });
-    // #endregion
     try {
       await PdfrxInitializer.ensureInitialized();
       var initialPage = 1;
-      Object? prefsError;
       try {
         final prefs = await ref.read(appPreferencesProvider.future);
         _readingPreferences = prefs;
         initialPage = prefs.readingPageFor(_documentKey);
-      } catch (e) {
-        prefsError = e;
+      } catch (_) {
         // A preferences failure should never prevent the document from opening.
       }
       if (mounted) {
@@ -182,34 +105,15 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
           _pdfReady = true;
         });
       }
-      // #region agent log
-      agentDebugLog('A', 'pdf_viewer_screen.dart:_initPdf', 'init finished', {
-        'mounted': mounted,
-        'pdfReady': mounted,
-        'initialPage': initialPage,
-        'prefsError': prefsError?.runtimeType.toString(),
-      });
-      // #endregion
     } catch (e) {
-      // #region agent log
-      agentDebugLog('A', 'pdf_viewer_screen.dart:_initPdf', 'init failed', {
-        'errorType': e.runtimeType.toString(),
-      });
-      // #endregion
       if (mounted) setState(() => _initError = e);
     }
   }
 
   void _onViewerReady(PdfDocument document, PdfViewerController controller) {
-    debugPrint('====== _onViewerReady CALLED ======');
     if (!mounted) return;
-    try {
-      _textSearcher ??= PdfTextSearcher(controller)
-        ..addListener(_onSearchUpdated);
-    } catch (e, st) {
-      debugPrint('====== ERROR in PdfTextSearcher: $e\n$st');
-    }
-    
+    _textSearcher ??= PdfTextSearcher(controller)
+      ..addListener(_onSearchUpdated);
     final safePage = document.pages.isEmpty
         ? 1
         : _initialPageNumber.clamp(1, document.pages.length).toInt();
@@ -219,12 +123,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
       _pageCount = document.pages.length;
       _currentPageNumber = safePage;
     });
-    // #region agent log
-    agentDebugLog('C', 'pdf_viewer_screen.dart:_onViewerReady', 'viewer ready', {
-      'pages': document.pages.length,
-      'safePage': safePage,
-    });
-    // #endregion
     if (safePage != _initialPageNumber) {
       unawaited(controller.goToPage(pageNumber: safePage));
     }
@@ -566,17 +464,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
     final password = _nextPassword;
     _nextPassword = null;
     if (password != null) _passwordAttempted = true;
-    if (!_loggedPassword) {
-      _loggedPassword = true;
-      // #region agent log
-      agentDebugLog(
-        'D',
-        'pdf_viewer_screen.dart:_providePassword',
-        'password requested',
-        {'hadPassword': password != null && password.isNotEmpty},
-      );
-      // #endregion
-    }
     return password;
   }
 
@@ -601,17 +488,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
     PdfDocumentRef documentRef,
   ) {
     final needsPassword = error is PdfPasswordException;
-    // #region agent log
-    agentDebugLog(
-      'E',
-      'pdf_viewer_screen.dart:_buildDocumentError',
-      'document error',
-      {
-        'errorType': error.runtimeType.toString(),
-        'needsPassword': needsPassword,
-      },
-    );
-    // #endregion
     final message = needsPassword
         ? (_passwordAttempted
               ? 'Incorrect PDF password.'
@@ -761,56 +637,6 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(widget.filePath);
-    final phase = _initError != null
-        ? 'init-error'
-        : !_pdfReady
-        ? 'spinner'
-        : !file.existsSync()
-        ? 'missing'
-        : 'viewer';
-    if (_loggedBuildPhase != phase) {
-      _loggedBuildPhase = phase;
-      final exists = phase == 'spinner' ? null : file.existsSync();
-      // #region agent log
-      agentDebugLog('B', 'pdf_viewer_screen.dart:build', 'build phase', {
-        'phase': phase,
-        'exists': exists,
-        'bytes': exists == true ? file.lengthSync() : null,
-        'viewerReady': _viewerReady,
-        'pageCount': _pageCount,
-      });
-      // #endregion
-      if (phase == 'viewer') {
-        final documentRef = PdfDocumentRefFile(
-          widget.filePath,
-          key: PdfDocumentRefKey(widget.filePath, [_viewerSession]),
-          passwordProvider: _providePassword,
-        );
-        void logDocument(String when) {
-          if (!mounted) return;
-          final listenable = documentRef.resolveListenable();
-          // #region agent log
-          agentDebugLog(
-            'C',
-            'pdf_viewer_screen.dart:build',
-            'document listenable',
-            {
-              'when': when,
-              'attempted': listenable.loadAttempted,
-              'hasDocument': listenable.document != null,
-              'pages': listenable.document?.pages.length,
-              'errorType': listenable.error?.runtimeType.toString(),
-            },
-          );
-          // #endregion
-        }
-
-        WidgetsBinding.instance.addPostFrameCallback((_) => logDocument('frame'));
-        Timer(const Duration(seconds: 3), () => logDocument('3s'));
-      }
-    }
-
     if (_initError != null) {
       return Scaffold(
         appBar: AppBar(title: Text(p.basename(widget.filePath))),
@@ -825,6 +651,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
       );
     }
 
+    final file = File(widget.filePath);
     if (!file.existsSync()) {
       return Scaffold(
         appBar: AppBar(title: Text(p.basename(widget.filePath))),
@@ -920,6 +747,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
                   ),
                   Expanded(
                     child: Center(
+                      heightFactor: 1,
                       child: TextButton.icon(
                         onPressed: _showPageJump,
                         icon: const Icon(Icons.find_in_page_outlined),
@@ -1075,13 +903,6 @@ class _OutlineEntry {
 }
 
 void openPdfViewer(BuildContext context, String filePath, {String? password}) {
-  // #region agent log
-  agentDebugLog('B', 'pdf_viewer_screen.dart:openPdfViewer', 'navigate', {
-    'name': p.basename(filePath),
-    'pathLen': filePath.length,
-    'hasPassword': password != null && password.isNotEmpty,
-  });
-  // #endregion
   context.push(
     '/viewer',
     extra: PdfViewerArgs(filePath: filePath, password: password),
