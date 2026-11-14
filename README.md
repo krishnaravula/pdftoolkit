@@ -7,6 +7,12 @@ or cloud uploads.
 The app targets Android 10 and newer (`minSdk 29`) and can be selected as the
 system's default PDF viewer.
 
+## Download for Android
+
+Get the APK from [GitHub Releases](https://github.com/krishnaravula/pdftoolkit/releases).
+Open the downloaded APK on your Android device to install PDF Tools. Android
+may ask you to allow installations from the app you used to open the file.
+
 ## What it does
 
 - Opens PDFs from Android Files and other apps
@@ -201,3 +207,8 @@ privacy documentation.
 
 For startup, intent, and native-library issues, see
 [docs/android_launch_debugging.md](docs/android_launch_debugging.md).
+
+## License
+
+PDF Tools is released under the [MIT License](LICENSE). Third-party dependencies
+retain their own licenses.
