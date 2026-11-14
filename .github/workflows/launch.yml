@@ -20,6 +20,10 @@ jobs:
         continue-on-error: true
       - run: flutter analyze --no-pub
         continue-on-error: true
+      - name: Install PDFium for Linux widget and service tests
+        run: |
+          mkdir -p "$FLUTTER_ROOT/bin/cache/artifacts/engine/linux-x64/lib"
+          curl --fail --silent --show-error --location 'https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7811/pdfium-linux-x64.tgz' | tar -xz -C "$FLUTTER_ROOT/bin/cache/artifacts/engine/linux-x64" lib/libpdfium.so
       - run: flutter test --no-pub
       - name: Configure disposable build signing key
         run: |
