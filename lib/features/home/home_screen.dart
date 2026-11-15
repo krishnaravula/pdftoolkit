@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,17 +116,23 @@ class HomeScreen extends ConsumerWidget {
                   : constraints.maxWidth >= 560
                   ? 3
                   : 2;
+              const spacing = 12.0;
+              final totalSpacing = spacing * (columns - 1);
+              final tileWidth = (constraints.maxWidth - totalSpacing) / columns;
+              final aspectRatio = switch (columns) {
+                2 => 0.86,
+                3 => 0.96,
+                _ => 1.05,
+              };
+
               return GridView.count(
                 crossAxisCount: columns,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: switch (columns) {
-                  2 => 0.86,
-                  3 => 0.96,
-                  _ => 1.05,
-                },
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
+                // Leave room for wrapped tool labels on narrow screens.
+                mainAxisExtent: math.max(176.0, tileWidth / aspectRatio),
                 children: [
                   for (final tool in _tools)
                     ToolCard(
