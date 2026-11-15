@@ -64,4 +64,5 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: flutter test --no-pub -d emulator-5554 integration_test
+          # Connect directly to the VM service to avoid DDS startup failures in CI.
+          script: flutter test --no-pub --no-dds -d emulator-5554 integration_test
