@@ -29,7 +29,8 @@ jobs:
         run: |
           keytool -genkeypair -keystore "$RUNNER_TEMP/build.jks" -storepass disposable -keypass disposable -alias build -keyalg RSA -keysize 2048 -validity 7 -dname CN=Temporary
           printf 'storeFile=%s\nstorePassword=disposable\nkeyPassword=disposable\nkeyAlias=build\n' "$RUNNER_TEMP/build.jks" > android/key.properties
-      - run: flutter build apk --release --no-pub
+      # Let Flutter regenerate the release registrant without dev-only plugins.
+      - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: release-apk
