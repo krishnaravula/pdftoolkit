@@ -46,7 +46,6 @@ android {
         applicationId = "com.pdftoolkit.pdf_tool"
         minSdk = 29
         targetSdk = 36
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // versionCode / versionName are sourced from pubspec.yaml (e.g. 1.0.0+2).
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -110,7 +109,4 @@ dependencies {
     // exporting PDFs to a user-picked tree URI. Declared explicitly because it
     // is no longer provided transitively by plugins.
     implementation("androidx.documentfile:documentfile:1.0.1")
-    // Keep the instrumented APK and the debug app on the same AndroidX Test versions.
-    debugImplementation("androidx.test:runner:1.6.2")
-    debugImplementation("androidx.test:rules:1.6.1")
 }

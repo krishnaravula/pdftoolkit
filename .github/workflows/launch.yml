@@ -57,8 +57,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Generate Flutter's Android build files
-        run: flutter build apk --debug --no-pub --config-only
       - name: Run device integration tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -66,8 +64,8 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          working-directory: android
+          # Use the Flutter driver to collect the on-device test results without DDS.
           script: >-
-            timeout 18m ./gradlew :app:connectedDebugAndroidTest
-            -Ptarget="$GITHUB_WORKSPACE/integration_test/app_test.dart" -Ptarget-platform=android-x64
+            timeout 15m flutter drive --no-pub --no-dds --timeout=180 -d emulator-5554
+            --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart
             || { result=$?; adb logcat -d -b crash; exit "$result"; }
