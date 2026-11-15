@@ -11,7 +11,7 @@ void main() {
 
   testWidgets('app launches and shows home', (tester) async {
     SharedPreferences.setMockInitialValues({'onboarding_complete': true});
-    app.main();
+    await app.main();
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
     expect(find.text(Env.appName), findsOneWidget);
@@ -20,10 +20,12 @@ void main() {
 
   testWidgets('can open split screen from home tool', (tester) async {
     SharedPreferences.setMockInitialValues({'onboarding_complete': true});
-    app.main();
+    await app.main();
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
-    await tester.tap(find.text('Split PDF'));
+    final splitTool = find.text('Split PDF');
+    await tester.ensureVisible(splitTool);
+    await tester.tap(splitTool);
     await tester.pumpAndSettle();
 
     expect(find.text('Split PDF'), findsWidgets);
